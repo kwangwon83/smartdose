@@ -4,6 +4,9 @@ module.exports = {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Pretendard', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -48,6 +51,22 @@ module.exports = {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        smart: {
+          primary: "#14B8A6",
+          "primary-light": "#5EEAD4",
+          "primary-dark": "#0D9488",
+          accent: "#F97316",
+          "accent-light": "#FDBA74",
+          bg: "#F8FAFC",
+          surface: "#FFFFFF",
+          text: "#0F172A",
+          "text-secondary": "#64748B",
+          "text-muted": "#94A3B8",
+          border: "#E2E8F0",
+          danger: "#EF4444",
+          success: "#22C55E",
+          info: "#3B82F6",
+        },
       },
       borderRadius: {
         xl: "calc(var(--radius) + 4px)",
@@ -58,6 +77,10 @@ module.exports = {
       },
       boxShadow: {
         xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)",
+        card: "0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)",
+        "card-hover": "0 4px 6px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06)",
+        float: "0 10px 25px rgba(20,184,166,0.3)",
+        modal: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",
       },
       keyframes: {
         "accordion-down": {
