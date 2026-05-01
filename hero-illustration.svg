@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200" fill="none">
+  <rect width="320" height="200" fill="#F8FAFC"/>
+  <ellipse cx="160" cy="170" rx="100" ry="20" fill="#E2E8F0" opacity="0.5"/>
+  <!-- Parent figure -->
+  <circle cx="130" cy="80" r="25" fill="#FDBA74"/>
+  <path d="M105 110C105 96.19 116.19 85 130 85H140C153.81 85 165 96.19 165 110V140H105V110Z" fill="#14B8A6"/>
+  <!-- Child figure -->
+  <circle cx="190" cy="95" r="18" fill="#FDBA74"/>
+  <path d="M172 118C172 107.51 180.51 99 191 99H197C207.49 99 216 107.51 216 118V145H172V118Z" fill="#F97316"/>
+  <!-- Thermometer -->
+  <rect x="170" y="85" width="6" height="24" rx="3" fill="#94A3B8" transform="rotate(-15 173 97)"/>
+  <circle cx="176" cy="82" r="4" fill="#EF4444"/>
+  <!-- Hearts / warmth -->
+  <path d="M145 50C145 50 150 45 155 50C160 55 145 65 145 65C145 65 130 55 135 50C140 45 145 50 145 50Z" fill="#F97316" opacity="0.6"/>
+  <path d="M175 55C175 55 178 52 181 55C184 58 175 64 175 64C175 64 166 58 169 55C172 52 175 55 175 55Z" fill="#14B8A6" opacity="0.5"/>
+  <!-- Decorative soft shapes -->
+  <circle cx="60" cy="60" r="15" fill="#5EEAD4" opacity="0.2"/>
+  <circle cx="260" cy="90" r="20" fill="#FDBA74" opacity="0.15"/>
+  <circle cx="280" cy="50" r="10" fill="#14B8A6" opacity="0.1"/>
+</svg>
