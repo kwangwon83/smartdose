@@ -12,6 +12,7 @@ import {
   Pencil,
   Share2,
   AlertTriangle,
+  RotateCcw,
 } from 'lucide-react'
 import Layout from '@/components/Layout'
 import BottomSheet from '@/components/BottomSheet'
@@ -25,7 +26,7 @@ import {
 } from 'date-fns'
 import { ko } from 'date-fns/locale'
 
-// ─── Helpers ───
+// ─── Constants ───
 const MEDICINE_INFO: Record<
   'acetaminophen' | 'ibuprofen',
   { name: string; color: string; bg: string; intervalHours: number }
@@ -44,6 +45,10 @@ const MEDICINE_INFO: Record<
   },
 }
 
+const HOURS = Array.from({ length: 24 }, (_, i) => i)
+const MINUTES = [0, 10, 20, 30, 40, 50]
+
+// ─── Helpers ───
 function formatTimeKorean(date: Date | string) {
   return new Date(date).toLocaleTimeString('ko-KR', {
     hour: 'numeric',
@@ -53,6 +58,10 @@ function formatTimeKorean(date: Date | string) {
 }
 
 function getNextDoseTime(record: DosageRecord): string {
+  const custom = (record as any).nextDoseTime
+  if (custom) {
+    return formatTimeKorean(new Date(custom))
+  }
   const d = new Date(record.timestamp)
   const hours = MEDICINE_INFO[record.medicine].intervalHours
   d.setHours(d.getHours() + hours)
@@ -105,6 +114,100 @@ function groupByDate(records: DosageRecord[]) {
   }
 
   return groups
+}
+
+// ─── Time Wheel Picker ───
+function TimeWheelPicker({
+  hours,
+  minutes,
+  onChangeHours,
+  onChangeMinutes,
+}: {
+  hours: number
+  minutes: number
+  onChangeHours: (h: number) => void
+  onChangeMinutes: (m: number) => void
+}) {
+  const hourRef = useRef<HTMLDivElement>(null)
+  const minuteRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (hourRef.current) {
+      const selected = hourRef.current.querySelector(`[data-hour="${hours}"]`)
+      if (selected) {
+        selected.scrollIntoView({ behavior: 'instant', block: 'center' })
+      }
+    }
+  }, [hours])
+
+  useEffect(() => {
+    if (minuteRef.current) {
+      const selected = minuteRef.current.querySelector(`[data-minute="${minutes}"]`)
+      if (selected) {
+        selected.scrollIntoView({ behavior: 'instant', block: 'center' })
+      }
+    }
+  }, [minutes])
+
+  return (
+    <div className="flex items-stretch justify-center gap-4 h-[200px]">
+      <div className="flex flex-col items-center">
+        <span className="text-xs font-medium text-smart-text-muted mb-1">시</span>
+        <div
+          ref={hourRef}
+          className="flex-1 overflow-y-auto w-20 scrollbar-hide"
+          style={{ scrollbarWidth: 'none' }}
+        >
+          <div className="flex flex-col gap-1 py-[80px]">
+            {HOURS.map((h) => (
+              <button
+                key={h}
+                data-hour={h}
+                onClick={() => onChangeHours(h)}
+                className={`h-10 flex items-center justify-center text-lg font-medium rounded-lg transition-colors shrink-0 ${
+                  h === hours
+                    ? 'text-smart-primary font-bold bg-smart-primary/10'
+                    : 'text-smart-text-secondary hover:bg-[#F1F5F9]'
+                }`}
+              >
+                {h.toString().padStart(2, '0')}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center pt-6">
+        <span className="text-xl font-bold text-smart-text-muted">:</span>
+      </div>
+
+      <div className="flex flex-col items-center">
+        <span className="text-xs font-medium text-smart-text-muted mb-1">분</span>
+        <div
+          ref={minuteRef}
+          className="flex-1 overflow-y-auto w-20 scrollbar-hide"
+          style={{ scrollbarWidth: 'none' }}
+        >
+          <div className="flex flex-col gap-1 py-[80px]">
+            {MINUTES.map((m) => (
+              <button
+                key={m}
+                data-minute={m}
+                onClick={() => onChangeMinutes(m)}
+                className={`h-10 flex items-center justify-center text-lg font-medium rounded-lg transition-colors shrink-0 ${
+                  m === minutes
+                    ? 'text-smart-primary font-bold bg-smart-primary/10'
+                    : 'text-smart-text-secondary hover:bg-[#F1F5F9]'
+                }`}
+              >
+                {m.toString().padStart(2, '0')}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ─── Swipeable Record Card ───
@@ -214,7 +317,8 @@ function SwipeableRecordCard({
             </span>
           </div>
           <p className="text-sm text-smart-text-secondary mt-0.5">
-            {record.amountMl}ml ({record.amountMg}mg)
+            <span className="text-base font-semibold text-smart-text">{record.amountMg}mg</span>
+            <span className="text-xs text-smart-text-muted"> ({record.amountMl}ml)</span>
           </p>
           {record.memo && (
             <p className="text-xs text-smart-text-muted mt-0.5 truncate">
@@ -260,6 +364,11 @@ export default function History() {
   const [editingNote, setEditingNote] = useState(false)
   const [noteDraft, setNoteDraft] = useState('')
   const [headerShadow, setHeaderShadow] = useState(false)
+
+  // Time picker state
+  const [timePickerOpen, setTimePickerOpen] = useState(false)
+  const [pickerHour, setPickerHour] = useState(0)
+  const [pickerMinute, setPickerMinute] = useState(0)
 
   useEffect(() => {
     const onScroll = () => setHeaderShadow(window.scrollY > 10)
@@ -323,6 +432,65 @@ export default function History() {
     setEditingNote(false)
     showToast('메모가 수정되었어요', 'success')
   }, [detailRecord, noteDraft, deleteDosageRecord, addDosageRecord])
+
+  // ─── Time edit handlers ───
+  const handleOpenTimePicker = useCallback(() => {
+    if (!detailRecord) return
+    const base = (detailRecord as any).nextDoseTime
+      ? new Date((detailRecord as any).nextDoseTime)
+      : (() => {
+          const d = new Date(detailRecord.timestamp)
+          d.setHours(d.getHours() + MEDICINE_INFO[detailRecord.medicine].intervalHours)
+          return d
+        })()
+    setPickerHour(base.getHours())
+    setPickerMinute(base.getMinutes())
+    setTimePickerOpen(true)
+  }, [detailRecord])
+
+  const handleConfirmTimeEdit = useCallback(() => {
+    if (!detailRecord) return
+    const base = (detailRecord as any).nextDoseTime
+      ? new Date((detailRecord as any).nextDoseTime)
+      : (() => {
+          const d = new Date(detailRecord.timestamp)
+          d.setHours(d.getHours() + MEDICINE_INFO[detailRecord.medicine].intervalHours)
+          return d
+        })()
+    const newDate = new Date(
+      base.getFullYear(),
+      base.getMonth(),
+      base.getDate(),
+      pickerHour,
+      pickerMinute,
+      0,
+      0
+    )
+    const updated = {
+      ...detailRecord,
+      nextDoseTime: newDate.toISOString(),
+    } as DosageRecord
+    deleteDosageRecord(detailRecord.id)
+    addDosageRecord(updated)
+    setDetailRecord(updated)
+    setTimePickerOpen(false)
+    showToast('다음 투약 시간이 수정되었습니다', 'success')
+  }, [detailRecord, pickerHour, pickerMinute, deleteDosageRecord, addDosageRecord])
+
+  const handleCancelTimeEdit = useCallback(() => {
+    setTimePickerOpen(false)
+  }, [])
+
+  const handleResetToAuto = useCallback(() => {
+    if (!detailRecord) return
+    const updated = { ...detailRecord }
+    delete (updated as any).nextDoseTime
+    deleteDosageRecord(detailRecord.id)
+    addDosageRecord(updated)
+    setDetailRecord(updated)
+    setTimePickerOpen(false)
+    showToast('자동 계산 시간으로 되돌렸어요', 'info')
+  }, [detailRecord, deleteDosageRecord, addDosageRecord])
 
   const chips = [
     { id: 'all', name: '전체', avatar: '' },
@@ -603,7 +771,8 @@ export default function History() {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-smart-text-secondary">투약량</span>
                 <span className="text-sm font-medium text-smart-text">
-                  {detailRecord.amountMl}ml ({detailRecord.amountMg}mg)
+                  <span className="text-base font-semibold">{detailRecord.amountMg}mg</span>
+                  <span className="text-xs text-smart-text-muted"> ({detailRecord.amountMl}ml)</span>
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -613,10 +782,19 @@ export default function History() {
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-smart-text-secondary">다음 투약</span>
-                <span className="text-sm font-medium text-smart-accent">
-                  {getNextDoseTime(detailRecord)}
-                </span>
+                <span className="text-sm text-smart-text-secondary">다음 투약 가능</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-smart-accent">
+                    {getNextDoseTime(detailRecord)}
+                  </span>
+                  <button
+                    onClick={handleOpenTimePicker}
+                    className="flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-smart-primary/10 text-smart-primary text-xs font-medium active:scale-95 transition-transform shrink-0"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    수정
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -688,6 +866,61 @@ export default function History() {
             </div>
           </div>
         )}
+      </BottomSheet>
+
+      {/* ─── Time Picker Bottom Sheet ─── */}
+      <BottomSheet
+        isOpen={timePickerOpen}
+        onClose={handleCancelTimeEdit}
+        title="다음 투약 시간 설정"
+      >
+        <div className="flex flex-col gap-5">
+          {/* 현재 선택된 시간 미리보기 */}
+          <div className="flex items-center justify-center py-2">
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-bold text-smart-text">
+                {format(
+                  new Date(2000, 0, 1, pickerHour, pickerMinute),
+                  'a h:mm',
+                  { locale: ko }
+                )}
+              </span>
+            </div>
+          </div>
+
+          {/* 휠 피커 */}
+          <TimeWheelPicker
+            hours={pickerHour}
+            minutes={pickerMinute}
+            onChangeHours={setPickerHour}
+            onChangeMinutes={setPickerMinute}
+          />
+
+          {/* 버튼 영역 */}
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleConfirmTimeEdit}
+              className="w-full h-14 rounded-2xl bg-smart-primary text-white text-base font-semibold flex items-center justify-center shadow-float active:scale-[0.97] transition-all hover:bg-smart-primary-dark"
+            >
+              확인
+            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleResetToAuto}
+                className="flex-1 h-12 rounded-xl bg-[#F1F5F9] text-smart-text-secondary font-medium text-sm flex items-center justify-center gap-1.5 active:scale-[0.97] transition-transform"
+              >
+                <RotateCcw className="w-4 h-4" />
+                자동 계산
+              </button>
+              <button
+                onClick={handleCancelTimeEdit}
+                className="flex-1 h-12 rounded-xl bg-[#F1F5F9] text-smart-text font-medium text-sm flex items-center justify-center active:scale-[0.97] transition-transform"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
       </BottomSheet>
 
       {/* ─── Delete Confirmation Modal ─── */}
