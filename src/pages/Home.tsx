@@ -84,12 +84,6 @@ function WeightSlider({
   const max = 60
   const pct = ((value - min) / (max - min)) * 100
 
-  const ticks = []
-  for (let t = 5; t <= 60; t += 5) {
-    const tickPct = ((t - min) / (max - min)) * 100
-    ticks.push(tickPct)
-  }
-
   return (
     <div className="w-full">
       <div className="relative h-8 flex items-center">
@@ -98,21 +92,13 @@ function WeightSlider({
           className="absolute left-0 h-2 rounded-full bg-smart-primary"
           style={{ width: `${pct}%` }}
         />
-        {/* Tick marks every 5kg */}
-        {ticks.map((tp, i) => (
-          <div
-            key={i}
-            className="absolute top-1/2 -translate-y-1/2 w-[3px] h-[7px] rounded-full bg-[#CBD5E1] pointer-events-none z-0"
-            style={{ left: `calc(${tp}% - 1.5px)` }}
-          />
-        ))}
         <input
           type="range"
           min={min}
           max={max}
-          step={0.5}
+          step={0.1}
           value={value}
-          onChange={(e) => onChange(Math.round(Number(e.target.value) * 2) / 2)}
+          onChange={(e) => onChange(Number(e.target.value))}
           className="absolute w-full h-full opacity-0 cursor-pointer z-10"
         />
         <motion.div
@@ -329,10 +315,10 @@ export default function Home() {
 
           <div className="flex items-center justify-center gap-3">
             <button
-              onMouseDown={() => startHold(-0.5)}
+              onMouseDown={() => startHold(-0.1)}
               onMouseUp={stopHold}
               onMouseLeave={stopHold}
-              onTouchStart={() => startHold(-0.5)}
+              onTouchStart={() => startHold(-0.1)}
               onTouchEnd={stopHold}
               className="w-10 h-10 rounded-full border border-smart-border bg-white flex items-center justify-center active:scale-90 transition-transform"
             >
@@ -347,34 +333,26 @@ export default function Home() {
               className="flex items-baseline gap-1"
             >
               <input
-                type="text"
-                inputMode="decimal"
-                value={weight.toFixed(1)}
+                type="number"
+                value={weight}
                 onChange={(e) => {
-                  const raw = e.target.value.replace(/[^0-9.]/g, '')
-                  const v = Number(raw)
-                  if (!isNaN(v) && v >= 3 && v <= 60) setWeight(formatNumber(v))
-                  else if (raw === '' || raw === '.') setWeight(3)
-                }}
-                onBlur={(e) => {
                   const v = Number(e.target.value)
-                  if (isNaN(v) || e.target.value === '') {
-                    setWeight(3)
-                  } else {
-                    const clamped = Math.max(3, Math.min(60, v))
-                    setWeight(Math.round(clamped * 10) / 10)
-                  }
+                  if (!isNaN(v) && v >= 3 && v <= 60) setWeight(formatNumber(v))
+                  else if (e.target.value === '') setWeight(3)
                 }}
                 className="w-28 text-center text-[3rem] font-bold text-smart-text bg-transparent border-none outline-none"
+                min={3}
+                max={60}
+                step={0.1}
               />
               <span className="text-base text-smart-text-secondary font-medium">kg</span>
             </motion.div>
 
             <button
-              onMouseDown={() => startHold(0.5)}
+              onMouseDown={() => startHold(0.1)}
               onMouseUp={stopHold}
               onMouseLeave={stopHold}
-              onTouchStart={() => startHold(0.5)}
+              onTouchStart={() => startHold(0.1)}
               onTouchEnd={stopHold}
               className="w-10 h-10 rounded-full border border-smart-border bg-white flex items-center justify-center active:scale-90 transition-transform"
             >
