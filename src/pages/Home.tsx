@@ -418,19 +418,19 @@ export default function Home() {
                   className="flex items-baseline justify-center gap-1"
                 >
                   <span className="text-[3rem] font-bold text-smart-primary leading-tight">
-                    {formatNumber(dosage.minMl)} ~ {formatNumber(dosage.maxMl)}
+                    {Math.round(dosage.minMg)} ~ {Math.round(dosage.maxMg)}
                   </span>
-                  <span className="text-base text-smart-text-secondary font-medium">ml</span>
+                  <span className="text-base text-smart-text-secondary font-medium">mg</span>
                 </motion.div>
                 <p className="text-sm text-smart-text-muted mt-1">
-                  ({Math.round(dosage.minMg)} ~ {Math.round(dosage.maxMg)}mg)
+                  ({formatNumber(dosage.minMl)} ~ {formatNumber(dosage.maxMl)}ml)
                 </p>
               </div>
 
               {/* Concentration */}
               <div className="text-center mb-4">
                 <p className="text-xs text-smart-text-muted">
-                  기준: {product.concentration}mg / 5ml
+                  기준: {product.concentration}mg / 5ml (1ml당 {product.concentration / 5}mg)
                 </p>
                 <p className="text-xs text-smart-text-muted flex items-center justify-center gap-1 mt-0.5">
                   <AlertCircle className="w-3 h-3" />

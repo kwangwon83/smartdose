@@ -176,7 +176,7 @@ function buildShareText(
 아이: ${childName}
 시간: ${time}
 약품: ${medicine}
-용량: ${doseMl}ml (${doseMg}mg)
+용량: ${doseMg}mg (${doseMl}ml)
 다음 투약 가능: ${nextDoseTime}`
 }
 
@@ -660,9 +660,8 @@ export default function DosageAction() {
             </motion.div>
             <motion.div className="flex items-center gap-3" variants={cardItemVariants}>
               <Droplets className="w-4 h-4 text-smart-primary shrink-0" />
-              <span className="text-base font-semibold text-smart-primary">
-                {doseMl}ml ({doseMg}mg)
-              </span>
+              <span className="text-lg font-bold text-smart-primary">{doseMg}mg</span>
+              <span className="text-sm text-smart-text-secondary">({doseMl}ml)</span>
             </motion.div>
             {/* 다음 투약 시간 + 편집 버튼 */}
             <motion.div className="flex items-center gap-3" variants={cardItemVariants}>
@@ -855,7 +854,7 @@ export default function DosageAction() {
                 {childName} / {weight}kg
               </p>
               <p className="text-lg font-semibold text-white">
-                {MEDICINE_NAMES[medicine]} {doseMl}ml
+                {MEDICINE_NAMES[medicine]} {doseMg}mg ({doseMl}ml)
               </p>
               <p className="text-sm text-white/80">{currentTimeStr} 투약</p>
             </div>
