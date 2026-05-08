@@ -19,10 +19,25 @@ export interface DosageRecord {
   memo?: string
 }
 
+export type AuthProvider = 'kakao' | 'naver' | 'google'
+
 export interface UserProfile {
+  /** OAuth provider that authenticated this user. */
+  provider: AuthProvider
+  /** Stable user identifier issued by the OAuth provider. */
+  providerUserId: string
+  /** Display name returned by the provider or account backend. */
   name: string
-  provider: 'kakao' | 'naver' | 'google'
   email?: string
+  avatarUrl?: string
+  /** True only when the app intentionally persists an OAuth access token locally. */
+  accessTokenStored: boolean
+  /** Optional persisted token. Disabled by default; enable only with VITE_STORE_OAUTH_ACCESS_TOKEN=true. */
+  accessToken?: string
+  /** ISO-8601 timestamp for access token expiry, when the provider/backend supplies it. */
+  tokenExpiresAt?: string
+  /** ISO-8601 timestamp for when this session was authenticated. */
+  authenticatedAt: string
 }
 
 interface AppState {
