@@ -131,16 +131,6 @@ export default function Home() {
 
   const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Auto-adjust product index when medicine changes
-  useEffect(() => {
-    setProductIndex(0)
-  }, [medicine])
-
-  // Sync weight when current child changes
-  useEffect(() => {
-    if (currentChild) setWeight(currentChild.weight)
-  }, [currentChild])
-
   const product = PRODUCTS[medicine][productIndex]
   const dosage = useMemo(() => calcDosage(weight, medicine, product.concentration), [weight, medicine, product])
 
@@ -195,6 +185,11 @@ export default function Home() {
     return () => document.removeEventListener('mousedown', handler)
   }, [childSelectorOpen])
 
+  const handleSelectMedicine = useCallback((nextMedicine: MedicineType) => {
+    setMedicine(nextMedicine)
+    setProductIndex(0)
+  }, [])
+
   const onSelectChild = (child: typeof currentChild) => {
     setCurrentChild(child)
     setChildSelectorOpen(false)
@@ -215,7 +210,7 @@ export default function Home() {
       name,
       birthDate: '',
       weight: w,
-      avatar: children.length % 2 === 0 ? './child-avatar-1.svg' : './child-avatar-2.svg',
+      avatar: children.length % 2 === 0 ? '/child-avatar-1.svg' : '/child-avatar-2.svg',
     }
     addChild(newChild)
     setCurrentChild(newChild)
@@ -237,7 +232,7 @@ export default function Home() {
         className="relative w-full h-[180px] overflow-hidden"
       >
         <img
-          src="./hero-illustration.svg"
+          src="/hero-illustration.svg"
           alt="hero"
           className="w-full h-full object-cover"
         />
@@ -374,7 +369,7 @@ export default function Home() {
               return (
                 <button
                   key={m}
-                  onClick={() => setMedicine(m)}
+                  onClick={() => handleSelectMedicine(m)}
                   className={`flex-1 h-12 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors active:scale-[0.97] ${
                     active
                       ? 'bg-smart-primary text-white'

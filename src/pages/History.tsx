@@ -58,7 +58,7 @@ function formatTimeKorean(date: Date | string) {
 }
 
 function getNextDoseTime(record: DosageRecord): string {
-  const custom = (record as any).nextDoseTime
+  const custom = record.nextDoseTime
   if (custom) {
     return formatTimeKorean(new Date(custom))
   }
@@ -436,8 +436,8 @@ export default function History() {
   // ─── Time edit handlers ───
   const handleOpenTimePicker = useCallback(() => {
     if (!detailRecord) return
-    const base = (detailRecord as any).nextDoseTime
-      ? new Date((detailRecord as any).nextDoseTime)
+    const base = detailRecord.nextDoseTime
+      ? new Date(detailRecord.nextDoseTime)
       : (() => {
           const d = new Date(detailRecord.timestamp)
           d.setHours(d.getHours() + MEDICINE_INFO[detailRecord.medicine].intervalHours)
@@ -450,8 +450,8 @@ export default function History() {
 
   const handleConfirmTimeEdit = useCallback(() => {
     if (!detailRecord) return
-    const base = (detailRecord as any).nextDoseTime
-      ? new Date((detailRecord as any).nextDoseTime)
+    const base = detailRecord.nextDoseTime
+      ? new Date(detailRecord.nextDoseTime)
       : (() => {
           const d = new Date(detailRecord.timestamp)
           d.setHours(d.getHours() + MEDICINE_INFO[detailRecord.medicine].intervalHours)
@@ -466,10 +466,10 @@ export default function History() {
       0,
       0
     )
-    const updated = {
+    const updated: DosageRecord = {
       ...detailRecord,
       nextDoseTime: newDate.toISOString(),
-    } as DosageRecord
+    }
     deleteDosageRecord(detailRecord.id)
     addDosageRecord(updated)
     setDetailRecord(updated)
@@ -483,8 +483,16 @@ export default function History() {
 
   const handleResetToAuto = useCallback(() => {
     if (!detailRecord) return
-    const updated = { ...detailRecord }
-    delete (updated as any).nextDoseTime
+    const updated: DosageRecord = {
+      id: detailRecord.id,
+      childId: detailRecord.childId,
+      medicine: detailRecord.medicine,
+      concentration: detailRecord.concentration,
+      amountMl: detailRecord.amountMl,
+      amountMg: detailRecord.amountMg,
+      timestamp: detailRecord.timestamp,
+      memo: detailRecord.memo,
+    }
     deleteDosageRecord(detailRecord.id)
     addDosageRecord(updated)
     setDetailRecord(updated)

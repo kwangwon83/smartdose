@@ -49,7 +49,7 @@ const MEDICINE_NAMES: Record<MedicineType, string> = {
 
 const MEDICINE_INTERVAL_HOURS: Record<MedicineType, number> = {
   acetaminophen: 4,
-  ibuprofen: 7,
+  ibuprofen: 6,
 }
 
 const PRODUCTS: Record<MedicineType, { name: string; concentration: number }[]> = {
@@ -151,7 +151,15 @@ function getManualTime(): string | null {
   return null
 }
 
-/** 수동 설정된 시간을 localStorage에 저장 */
+/** 수동 설정된 시간을 Date 객체로 변환 */
+function getManualNextDoseDate(): Date | null {
+  const saved = getManualTime()
+  if (!saved) return null
+
+  const parsed = new Date(saved)
+  return isNaN(parsed.getTime()) ? null : parsed
+}
+
 function saveManualTime(time: string | null) {
   try {
     if (time) {
@@ -361,7 +369,7 @@ export default function DosageAction() {
   const { currentChild, addDosageRecord, setAlarmEnabled, setNextDoseTime } = useAppContext()
 
   const [note, setNote] = useState('')
-  const [alarmOn, setAlarmOn] = useState(false)
+  const [alarmOn, setAlarmOn] = useState(() => getAlarm()?.enabled ?? false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [shareSheetOpen, setShareSheetOpen] = useState(false)
@@ -371,13 +379,13 @@ export default function DosageAction() {
   // ─── 다음 투약 시간 관련 상태 ───
   // 시간 편집 BottomSheet 열림 여부
   const [timePickerOpen, setTimePickerOpen] = useState(false)
+  // 수동으로 설정된 다음 투약 시간 (null이면 자동 계산 사용)
+  const [manualNextDoseDate, setManualNextDoseDate] = useState<Date | null>(() => getManualNextDoseDate())
   // 수동 편집 여부 플래그
-  const [isManualEdit, setIsManualEdit] = useState(false)
+  const [isManualEdit, setIsManualEdit] = useState(() => manualNextDoseDate !== null)
   // 편집 중인 시/분 (picker 상태)
   const [pickerHour, setPickerHour] = useState(0)
   const [pickerMinute, setPickerMinute] = useState(0)
-  // 수동으로 설정된 다음 투약 시간 (null이면 자동 계산 사용)
-  const [manualNextDoseDate, setManualNextDoseDate] = useState<Date | null>(null)
 
   // Stable current time (set once on mount)
   const now = useMemo(() => new Date(), [])
@@ -393,24 +401,6 @@ export default function DosageAction() {
   useEffect(() => {
     savePendingDosage({ medicine, productIndex, weight })
   }, [medicine, productIndex, weight])
-
-  // Initialize alarm state from localStorage
-  useEffect(() => {
-    const alarm = getAlarm()
-    if (alarm) setAlarmOn(alarm.enabled)
-  }, [])
-
-  // 마운트 시 localStorage에서 수동 설정된 시간 불러오기
-  useEffect(() => {
-    const saved = getManualTime()
-    if (saved) {
-      const parsed = new Date(saved)
-      if (!isNaN(parsed.getTime())) {
-        setManualNextDoseDate(parsed)
-        setIsManualEdit(true)
-      }
-    }
-  }, [])
 
   const dosage = useMemo(() => calcDosage(weight, medicine, product.concentration), [weight, medicine, product])
   const doseMl = formatNumber((dosage.minMl + dosage.maxMl) / 2)
