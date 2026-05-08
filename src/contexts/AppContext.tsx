@@ -129,7 +129,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((prev) => {
       const children = prev.children.filter((c) => c.id !== id)
       const currentChild = prev.currentChild?.id === id ? (children[0] ?? null) : prev.currentChild
-      return { ...prev, children, currentChild }
+      const dosageRecords = prev.dosageRecords.filter((r) => r.childId !== id)
+      return { ...prev, children, currentChild, dosageRecords }
     })
   }, [])
 
