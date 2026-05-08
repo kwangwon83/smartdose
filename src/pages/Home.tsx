@@ -16,10 +16,10 @@ import {
 import Layout from '@/components/Layout'
 import { useAppContext } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
-import { PRODUCTS, savePendingDosageDraft, type MedicineType } from '@/lib/dosage'
+import * as dosageLib from '@/lib/dosage'
 
 
-const MEDICINE_INFO: Record<MedicineType, { name: string; range: [number, number]; maxDoses: number; interval: string; desc: string }> = {
+const MEDICINE_INFO: Record<dosageLib.MedicineType, { name: string; range: [number, number]; maxDoses: number; interval: string; desc: string }> = {
   acetaminophen: {
     name: '아세트아미노펜',
     range: [10, 15],
@@ -36,14 +36,12 @@ const MEDICINE_INFO: Record<MedicineType, { name: string; range: [number, number
   },
 }
 
-const PENDING_DOSAGE_KEY = 'smartdose_pending_dosage'
-
 // ─── Helpers ───
 function formatNumber(n: number, digits = 1) {
   return Number(n.toFixed(digits))
 }
 
-function calcDosage(weight: number, medicine: MedicineType, concentration: number) {
+function calcDosage(weight: number, medicine: dosageLib.MedicineType, concentration: number) {
   const info = MEDICINE_INFO[medicine]
   const minMg = weight * info.range[0]
   const maxMg = weight * info.range[1]
@@ -54,14 +52,6 @@ function calcDosage(weight: number, medicine: MedicineType, concentration: numbe
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
-}
-
-function savePendingDosageDraft(draft: PendingDosageDraft) {
-  try {
-    localStorage.setItem(PENDING_DOSAGE_KEY, JSON.stringify(draft))
-  } catch {
-    // ignore
-  }
 }
 
 // ─── Components ───
@@ -115,18 +105,15 @@ export default function Home() {
   const navigate = useNavigate()
   const { currentChild, children, dosageRecords, setCurrentChild, addChild } = useAppContext()
 
-  const initialPrefs = useMemo(() => loadPrefs(), [])
   const [weight, setWeight] = useState(currentChild?.weight ?? 15)
-  const [medicine, setMedicine] = useState<MedicineType>(initialPrefs.defaultMedicine)
-  const [productIndex, setProductIndex] = useState(() =>
-    getProductIndexForPreference(PRODUCTS[initialPrefs.defaultMedicine], initialPrefs.defaultConcentration),
-  )
+  const [medicine, setMedicine] = useState<dosageLib.MedicineType>('acetaminophen')
+  const [productIndex, setProductIndex] = useState(0)
   const [accordionOpen, setAccordionOpen] = useState<string | null>(null)
   const [childSelectorOpen, setChildSelectorOpen] = useState(false)
 
   const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const product = PRODUCTS[medicine][productIndex]
+  const product = dosageLib.PRODUCTS[medicine][productIndex]
   const dosage = useMemo(() => calcDosage(weight, medicine, product.concentration), [weight, medicine, product])
 
   const isWeightValid = weight >= 3 && weight <= 60
@@ -156,17 +143,12 @@ export default function Home() {
     }
   }, [])
 
-  const handleSelectMedicine = (nextMedicine: MedicineType) => {
-    setMedicine(nextMedicine)
-    setProductIndex(0)
-  }
-
   const handleRecordClick = () => {
     if (!isWeightValid) {
       showToast('몸무게를 먼저 입력해주세요', 'info')
       return
     }
-    savePendingDosageDraft({ medicine, productIndex, weight })
+    dosageLib.savePendingDosageDraft({ medicine, productIndex, weight })
     navigate('/dosage')
   }
 
@@ -186,7 +168,7 @@ export default function Home() {
     return () => document.removeEventListener('mousedown', handler)
   }, [childSelectorOpen])
 
-  const handleSelectMedicine = useCallback((nextMedicine: MedicineType) => {
+  const handleSelectMedicine = useCallback((nextMedicine: dosageLib.MedicineType) => {
     setMedicine(nextMedicine)
     setProductIndex(0)
   }, [])
@@ -365,7 +347,7 @@ export default function Home() {
           className="flex flex-col gap-2"
         >
           <div className="flex gap-2">
-            {(['acetaminophen', 'ibuprofen'] as MedicineType[]).map((m) => {
+            {(['acetaminophen', 'ibuprofen'] as dosageLib.MedicineType[]).map((m) => {
               const active = medicine === m
               return (
                 <button
@@ -517,7 +499,7 @@ export default function Home() {
                   className="overflow-hidden"
                 >
                   <div className="px-5 pb-4 flex flex-col">
-                    {PRODUCTS[medicine].map((p, idx) => (
+                    {dosageLib.PRODUCTS[medicine].map((p, idx) => (
                       <button
                         key={p.name}
                         onClick={() => setProductIndex(idx)}

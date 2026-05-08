@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
-import { useLocation, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -24,17 +24,8 @@ import Layout from '@/components/Layout'
 import BottomSheet from '@/components/BottomSheet'
 import { useAppContext } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
-import {
-  MEDICINE_INTERVAL_HOURS,
-  MEDICINE_NAMES,
-  PRODUCTS,
-  getPendingDosage,
-  getProductIndexForPreference,
-  loadDosagePrefs,
-  savePendingDosageDraft,
-  type DoseAlarmData,
-  type MedicineType,
-} from '@/lib/dosage'
+import * as dosageLib from '@/lib/dosage'
+import { buildShareText, executeShareTarget, type ShareTarget } from '@/lib/share'
 
 // ─── Constants ───
 
@@ -43,43 +34,13 @@ const MINUTES = [0, 10, 20, 30, 40, 50]
 
 const ALARM_KEY = 'smartdose_alarm_v1'
 const MANUAL_TIME_KEY = 'smartdose_manual_time_v1'
-const SETTINGS_PREFS_KEY = 'smartdose_prefs_v1'
-
-interface DosagePrefs {
-  defaultMedicine: MedicineType
-  defaultConcentration: string
-}
-
 // ─── Helpers ───
-
-function loadPrefs(): DosagePrefs {
-  try {
-    const raw = localStorage.getItem(SETTINGS_PREFS_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<DosagePrefs>
-      const defaultMedicine = parsed.defaultMedicine === 'ibuprofen' ? 'ibuprofen' : 'acetaminophen'
-      return {
-        defaultMedicine,
-        defaultConcentration: parsed.defaultConcentration || PRODUCTS[defaultMedicine][0].concentration + 'mg/5ml',
-      }
-    }
-  } catch {
-    // ignore
-  }
-  return { defaultMedicine: 'acetaminophen', defaultConcentration: '100mg/5ml' }
-}
-
-function getProductIndexForPreference(medicine: MedicineType, concentration: string): number {
-  const concentrationValue = Number.parseInt(concentration, 10)
-  const index = PRODUCTS[medicine].findIndex((product) => product.concentration === concentrationValue)
-  return index >= 0 ? index : 0
-}
 
 function formatNumber(n: number, digits = 1) {
   return Number(n.toFixed(digits))
 }
 
-function calcDosage(weight: number, medicine: MedicineType, concentration: number) {
+function calcDosage(weight: number, medicine: dosageLib.MedicineType, concentration: number) {
   const range = medicine === 'acetaminophen' ? [10, 15] : [5, 10]
   const minMg = weight * range[0]
   const maxMg = weight * range[1]
@@ -107,7 +68,7 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-function getPendingDosage(): PendingDosageDraft | null {
+function getAlarm(): dosageLib.DoseAlarmData | null {
   try {
     const raw = localStorage.getItem(ALARM_KEY)
     if (raw) return JSON.parse(raw)
@@ -117,25 +78,9 @@ function getPendingDosage(): PendingDosageDraft | null {
   return null
 }
 
-function savePendingDosageDraft(dosage: PendingDosageDraft) {
-  try {
-    localStorage.setItem(PENDING_KEY, JSON.stringify(dosage))
-  } catch {
-    // ignore
-  }
-}
-
-function getAlarm(): DoseAlarmData | null {
+function scheduleDoseNotification(alarm: dosageLib.DoseAlarmData) {
   try {
     localStorage.setItem(ALARM_KEY, JSON.stringify(alarm))
-  } catch {
-    // ignore
-  }
-}
-
-function scheduleDoseNotification(alarm: DoseAlarmData) {
-  try {
-    localStorage.removeItem(ALARM_KEY)
   } catch {
     // ignore
   }
@@ -180,7 +125,6 @@ function saveManualTime(time: string | null) {
     // ignore
   }
 }
-
 
 // ─── Sub-components ───
 
@@ -360,7 +304,6 @@ function TimeWheelPicker({
 
 export default function DosageAction() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { currentChild, addDosageRecord, setAlarmEnabled, setNextDoseTime } = useAppContext()
 
   const [note, setNote] = useState('')
@@ -386,16 +329,16 @@ export default function DosageAction() {
   const now = useMemo(() => new Date(), [])
 
   // Derive dosage data
-  const pending = useMemo(() => getPendingDosage(), [])
-  const prefs = useMemo(() => loadPrefs(), [])
-  const medicine: MedicineType = pending?.medicine ?? prefs.defaultMedicine
-  const productIndex = pending?.productIndex ?? getProductIndexForPreference(medicine, prefs.defaultConcentration)
+  const pending = useMemo(() => dosageLib.getPendingDosage(), [])
+  const prefs = useMemo(() => dosageLib.loadDosagePrefs(), [])
+  const medicine: dosageLib.MedicineType = pending?.medicine ?? prefs.defaultMedicine
+  const productIndex = pending?.productIndex ?? dosageLib.getProductIndexForPreference(medicine, prefs.defaultConcentration)
   const weight = currentChild?.weight ?? pending?.weight ?? 15
-  const product = PRODUCTS[medicine][productIndex] ?? PRODUCTS[medicine][0]
+  const product = dosageLib.PRODUCTS[medicine][productIndex] ?? dosageLib.PRODUCTS.acetaminophen[0]
 
   // Persist current dosage to localStorage so refresh keeps it
   useEffect(() => {
-    savePendingDosageDraft({ medicine, productIndex, weight })
+    dosageLib.savePendingDosageDraft({ medicine, productIndex, weight })
   }, [medicine, productIndex, weight])
 
   const dosage = useMemo(() => calcDosage(weight, medicine, product.concentration), [weight, medicine, product])
@@ -403,7 +346,7 @@ export default function DosageAction() {
   const doseMg = Math.round((dosage.minMg + dosage.maxMg) / 2)
 
   // 자동 계산된 다음 투약 시간
-  const autoNextDoseDate = useMemo(() => addHours(now, MEDICINE_INTERVAL_HOURS[medicine]), [now, medicine])
+  const autoNextDoseDate = useMemo(() => addHours(now, dosageLib.MEDICINE_INTERVAL_HOURS[medicine]), [now, medicine])
 
   // 실제 사용할 다음 투약 시간 (수동 설정 우선)
   const nextDoseDate = manualNextDoseDate ?? autoNextDoseDate
@@ -429,7 +372,7 @@ export default function DosageAction() {
   const handleToggleAlarm = useCallback(
     async (enabled: boolean) => {
       const targetDate = nextDoseDate
-      const alarm: DoseAlarmData = {
+      const alarm: dosageLib.DoseAlarmData = {
         time: targetDate.toISOString(),
         childName,
         medicine,
@@ -456,13 +399,7 @@ export default function DosageAction() {
             return
           }
 
-          const scheduled = await scheduleDoseNotification(alarm)
-          if (!scheduled) {
-            setAlarmOn(false)
-            showToast('이미 지난 시간이라 알람을 설정하지 못했어요', 'error')
-            return
-          }
-
+          scheduleDoseNotification(alarm)
           setAlarmOn(true)
           setAlarmEnabled(true)
           setNextDoseTime(targetDate.toISOString())
@@ -471,14 +408,6 @@ export default function DosageAction() {
           setAlarmOn(false)
           showToast('알림 권한 요청에 실패했어요', 'error')
         }
-        scheduleDoseNotification({
-          time: targetDate.toISOString(),
-          childName,
-          medicine,
-          enabled: true,
-        })
-        setAlarmEnabled(true)
-        setNextDoseTime(targetDate.toISOString())
       } else {
         cancelDoseNotification()
         setAlarmEnabled(false)
@@ -521,37 +450,14 @@ export default function DosageAction() {
     setShareSheetOpen(true)
   }, [])
 
-  const handleShareResult = useCallback((result: ShareResult, target: ShareTarget) => {
-    if (result === 'shared') {
-      showToast('공유가 완료되었어요', 'success')
-    } else if (result === 'copied') {
-      showToast(
-        target === 'kakao'
-          ? '클립보드에 복사되었어요. 카카오톡에 붙여넣기 해주세요'
-          : '클립보드에 복사되었어요',
-        'success'
-      )
-    } else if (result === 'sms') {
-      showToast('문자 앱을 열었어요', 'success')
-    } else if (result === 'cancelled') {
-      showToast('공유가 취소되었어요', 'info')
-    } else {
-      showToast(
-        target === 'kakao'
-          ? '공유할 수 없어요. 앱이 설치되어 있는지 확인해주세요.'
-          : '공유할 수 없어요',
-        'error'
-      )
-    }
-  }, [])
-
   const executeShare = useCallback(async () => {
     if (!shareTarget) return
-    const text = buildShareText(childName, currentTimeStr, MEDICINE_NAMES[medicine], doseMl, doseMg, nextDoseTimeStr)
+
+    const text = buildShareText(childName, currentTimeStr, dosageLib.MEDICINE_NAMES[medicine], doseMl, doseMg, nextDoseTimeStr)
     const result = await executeShareTarget(shareTarget, text)
-    handleShareResult(result, shareTarget)
+    showToast(result.message, result.type)
     setShareSheetOpen(false)
-  }, [childName, currentTimeStr, medicine, doseMl, doseMg, nextDoseTimeStr, shareTarget, handleShareResult])
+  }, [childName, currentTimeStr, medicine, doseMl, doseMg, nextDoseTimeStr, shareTarget])
 
   // ─── 시간 편집 핸들러 ───
 
@@ -682,7 +588,7 @@ export default function DosageAction() {
             </motion.div>
             <motion.div className="flex items-center gap-3" variants={cardItemVariants}>
               <Pill className="w-4 h-4 text-smart-text-muted shrink-0" />
-              <span className="text-base font-medium text-smart-text">{MEDICINE_NAMES[medicine]}</span>
+              <span className="text-base font-medium text-smart-text">{dosageLib.MEDICINE_NAMES[medicine]}</span>
             </motion.div>
             <motion.div className="flex items-center gap-3" variants={cardItemVariants}>
               <Droplets className="w-4 h-4 text-smart-primary shrink-0" />
@@ -881,7 +787,7 @@ export default function DosageAction() {
                 {childName} / {weight}kg
               </p>
               <p className="text-lg font-semibold text-white">
-                {MEDICINE_NAMES[medicine]} {doseMl}ml
+                {dosageLib.MEDICINE_NAMES[medicine]} {doseMl}ml
               </p>
               <p className="text-sm text-white/80">{currentTimeStr} 투약</p>
             </div>
@@ -892,7 +798,7 @@ export default function DosageAction() {
 
           <div className="bg-[#F8FAFC] rounded-xl p-4">
             <p className="text-sm text-smart-text-secondary whitespace-pre-wrap font-sans">
-              {buildShareText(childName, currentTimeStr, MEDICINE_NAMES[medicine], doseMl, doseMg, nextDoseTimeStr)}
+              {buildShareText(childName, currentTimeStr, dosageLib.MEDICINE_NAMES[medicine], doseMl, doseMg, nextDoseTimeStr)}
             </p>
           </div>
 

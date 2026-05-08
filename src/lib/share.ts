@@ -1,6 +1,9 @@
 export type ShareTarget = 'kakao' | 'sms' | 'share'
 
-export type ShareResult = 'shared' | 'copied' | 'sms' | 'cancelled' | 'failed'
+export type ShareResult = {
+  message: string
+  type: 'success' | 'error' | 'info'
+}
 
 export function buildShareText(
   childName: string,
@@ -8,7 +11,7 @@ export function buildShareText(
   medicine: string,
   doseMl: number,
   doseMg: number,
-  nextDoseTime: string
+  nextDoseTime: string,
 ) {
   return `[투약 기록]
 아이: ${childName}
@@ -18,15 +21,15 @@ export function buildShareText(
 다음 투약 가능: ${nextDoseTime}`
 }
 
-function isAbortError(error: unknown) {
-  return error instanceof DOMException && error.name === 'AbortError'
-}
+async function copyText(text: string): Promise<boolean> {
+  if (!navigator.clipboard?.writeText) return false
 
-async function copyToClipboard(text: string) {
-  if (!navigator.clipboard?.writeText) {
-    throw new Error('Clipboard API is not available')
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    return false
   }
-  await navigator.clipboard.writeText(text)
 }
 
 export async function executeShareTarget(target: ShareTarget, text: string): Promise<ShareResult> {
@@ -34,29 +37,25 @@ export async function executeShareTarget(target: ShareTarget, text: string): Pro
     if (typeof navigator.share === 'function') {
       try {
         await navigator.share({ title: '투약 기록', text })
-        return 'shared'
-      } catch (error) {
-        return isAbortError(error) ? 'cancelled' : 'failed'
+        return { message: '공유가 완료되었어요', type: 'success' }
+      } catch {
+        return { message: '공유가 취소되었어요', type: 'info' }
       }
     }
 
-    try {
-      await copyToClipboard(text)
-      return 'copied'
-    } catch {
-      return 'failed'
-    }
+    const copied = await copyText(text)
+    return copied
+      ? { message: '클립보드에 복사되었어요', type: 'success' }
+      : { message: '공유할 수 없어요', type: 'error' }
   }
 
   if (target === 'sms') {
     window.location.href = `sms:?body=${encodeURIComponent(text)}`
-    return 'sms'
+    return { message: '문자 앱을 열었어요', type: 'success' }
   }
 
-  try {
-    await copyToClipboard(text)
-    return 'copied'
-  } catch {
-    return 'failed'
-  }
+  const copied = await copyText(text)
+  return copied
+    ? { message: '클립보드에 복사되었어요. 카카오톡에 붙여넣기 해주세요', type: 'success' }
+    : { message: '공유할 수 없어요. 앱이 설치되어 있는지 확인해주세요.', type: 'error' }
 }
