@@ -49,7 +49,7 @@ const MEDICINE_NAMES: Record<MedicineType, string> = {
 
 const MEDICINE_INTERVAL_HOURS: Record<MedicineType, number> = {
   acetaminophen: 4,
-  ibuprofen: 7,
+  ibuprofen: 6,
 }
 
 const PRODUCTS: Record<MedicineType, { name: string; concentration: number }[]> = {
@@ -132,7 +132,15 @@ function getManualTime(): string | null {
   return null
 }
 
-/** 수동 설정된 시간을 localStorage에 저장 */
+/** 수동 설정된 시간을 Date 객체로 변환 */
+function getManualNextDoseDate(): Date | null {
+  const saved = getManualTime()
+  if (!saved) return null
+
+  const parsed = new Date(saved)
+  return isNaN(parsed.getTime()) ? null : parsed
+}
+
 function saveManualTime(time: string | null) {
   try {
     if (time) {
