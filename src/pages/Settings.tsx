@@ -34,6 +34,52 @@ import { cn } from '@/lib/utils'
 
 const STORAGE_PREFS_KEY = 'smartdose_prefs_v1'
 
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0'
+const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || 'support@smartdose.app'
+const SUPPORT_CONTACT_URL = import.meta.env.VITE_SUPPORT_CONTACT_URL || 'https://smartdose.app/support'
+const SUPPORT_FORM_PATH = import.meta.env.VITE_SUPPORT_FORM_PATH || '/support'
+const SUPPORT_CONTACT_METHODS = ['mailto', 'external', 'in_app'] as const
+
+type SupportContactMethod = (typeof SUPPORT_CONTACT_METHODS)[number]
+
+function getSupportContactMethod(): SupportContactMethod {
+  const configuredMethod = import.meta.env.VITE_SUPPORT_CONTACT_METHOD
+  if (SUPPORT_CONTACT_METHODS.some((method) => method === configuredMethod)) return configuredMethod
+  return 'mailto'
+}
+
+function getDiagnosticInfo(provider: string): string {
+  const diagnostics = [
+    `앱 버전: ${APP_VERSION}`,
+    `브라우저: ${navigator.userAgent}`,
+    `로그인 provider: ${provider}`,
+  ]
+  return diagnostics.join('\n')
+}
+
+function buildSupportMailto(provider: string): string {
+  const subject = '[SmartDose] 문의하기'
+  const body = [
+    '문의 내용을 작성해주세요.',
+    '',
+    '--- 진단 정보(선택) ---',
+    getDiagnosticInfo(provider),
+  ].join('\n')
+
+  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+}
+
+async function copySupportUrlToClipboard(url: string): Promise<boolean> {
+  if (!navigator.clipboard?.writeText) return false
+
+  try {
+    await navigator.clipboard.writeText(url)
+    return true
+  } catch {
+    return false
+  }
+}
+
 interface Prefs {
   defaultMedicine: 'acetaminophen' | 'ibuprofen'
   defaultConcentration: string
@@ -317,6 +363,42 @@ export default function Settings() {
     [setAlarmEnabled],
   )
 
+  const handleContactSupport = useCallback(async () => {
+    const provider = userProfile?.provider ?? 'guest'
+    const contactMethod = getSupportContactMethod()
+
+    if (contactMethod === 'mailto') {
+      try {
+        window.location.href = buildSupportMailto(provider)
+        showToast('메일 앱을 열었어요. 문의 내용을 작성해 보내주세요.', 'success')
+      } catch {
+        showToast('메일 앱을 열 수 없어요. 이메일 주소를 확인해주세요.', 'error')
+      }
+      return
+    }
+
+    if (contactMethod === 'external') {
+      const supportWindow = window.open(SUPPORT_CONTACT_URL, '_blank', 'noopener,noreferrer')
+      if (supportWindow) {
+        supportWindow.opener = null
+        showToast('고객센터를 새 창에서 열었어요.', 'success')
+        return
+      }
+
+      const copied = await copySupportUrlToClipboard(SUPPORT_CONTACT_URL)
+      showToast(
+        copied
+          ? '새 창을 열 수 없어 고객센터 주소를 복사했어요.'
+          : '새 창을 열 수 없어요. 팝업 차단을 해제하거나 고객센터 주소를 직접 입력해주세요.',
+        copied ? 'info' : 'error',
+      )
+      return
+    }
+
+    navigate(SUPPORT_FORM_PATH)
+    showToast('문의 폼으로 이동했어요.', 'success')
+  }, [navigate, userProfile?.provider])
+
   const handleSelectMedicine = useCallback((value: 'acetaminophen' | 'ibuprofen') => {
     setPrefs((prev) => ({
       ...prev,
@@ -582,7 +664,7 @@ export default function Settings() {
               <Info className="w-6 h-6 text-smart-text-secondary shrink-0" />
               <span className="flex-1 text-sm font-medium text-smart-text">앱 정보</span>
               <span className="text-sm text-smart-text-muted flex items-center gap-1">
-                v1.0.0
+                v{APP_VERSION}
                 <ChevronRight className="w-4 h-4" />
               </span>
             </button>
@@ -600,7 +682,7 @@ export default function Settings() {
             </button>
             <div className="h-px bg-[#F1F5F9] mx-5" />
             <button
-              onClick={() => showToast('준비 중입니다', 'info')}
+              onClick={handleContactSupport}
               className={cn(menuItemClass, 'w-full')}
             >
               <Mail className="w-6 h-6 text-smart-text-secondary shrink-0" />
