@@ -21,6 +21,7 @@ import BottomSheet from '@/components/BottomSheet'
 import { useAppContext, type DosageRecord } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
 import { buildShareText, executeShareTarget, type ShareTarget, type ShareResult } from '@/lib/share'
+import { getDoseUnitLabelForConcentration, MEDICINE_THEMES } from '@/lib/dosage'
 import {
   isToday,
   isYesterday,
@@ -32,24 +33,18 @@ import { ko } from 'date-fns/locale'
 // ─── Constants ───
 const MEDICINE_INFO: Record<
   'acetaminophen' | 'ibuprofen' | 'dexibuprofen',
-  { name: string; color: string; bg: string; intervalHours: number }
+  { name: string; intervalHours: number }
 > = {
   acetaminophen: {
     name: '아세트아미노펜',
-    color: '#14B8A6',
-    bg: 'rgba(20,184,166,0.1)',
     intervalHours: 4,
   },
   ibuprofen: {
     name: '이부프로펜',
-    color: '#F97316',
-    bg: 'rgba(249,115,22,0.1)',
     intervalHours: 6,
   },
   dexibuprofen: {
     name: '덱시부프로펜',
-    color: '#8B5CF6',
-    bg: 'rgba(139,92,246,0.1)',
     intervalHours: 4,
   },
 }
@@ -235,6 +230,7 @@ function SwipeableRecordCard({
   const startX = useRef(0)
   const isSwiping = useRef(false)
   const info = MEDICINE_INFO[record.medicine]
+  const theme = MEDICINE_THEMES[record.medicine]
 
   const handleTouchStart = (e: React.TouchEvent) => {
     startX.current = e.touches[0].clientX
@@ -302,14 +298,15 @@ function SwipeableRecordCard({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        className="relative bg-white rounded-2xl border border-[#F1F5F9] p-4 flex items-center gap-3 cursor-pointer select-none"
+        className="relative rounded-2xl border p-4 flex items-center gap-3 cursor-pointer select-none"
+        style={{ background: theme.gradient, borderColor: theme.border }}
       >
         {/* Icon */}
         <div
           className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-          style={{ background: info.bg }}
+          style={{ background: theme.bg }}
         >
-          <Pill className="w-5 h-5" style={{ color: info.color }} />
+          <Pill className="w-5 h-5" style={{ color: theme.color }} />
         </div>
 
         {/* Info */}
@@ -320,14 +317,14 @@ function SwipeableRecordCard({
             </span>
             <span
               className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white shrink-0"
-              style={{ background: info.color }}
+              style={{ background: theme.chipBg, color: theme.color }}
             >
-              {record.medicine === 'acetaminophen' ? 'ACET' : 'IBU'}
+              {theme.label}
             </span>
           </div>
           <p className="text-sm text-smart-text-secondary mt-0.5">
             <span className="text-base font-semibold text-smart-text">{record.amountMg}mg</span>
-            <span className="text-xs text-smart-text-muted"> ({record.amountMl}ml)</span>
+            <span className="text-xs text-smart-text-muted"> ({record.amountMl}{getDoseUnitLabelForConcentration(record.concentration)})</span>
           </p>
           {record.memo && (
             <p className="text-xs text-smart-text-muted mt-0.5 truncate">
@@ -532,6 +529,7 @@ export default function History() {
       }),
       MEDICINE_INFO[detailRecord.medicine].name,
       detailRecord.amountMl,
+      getDoseUnitLabelForConcentration(detailRecord.concentration),
       detailRecord.amountMg,
       getNextDoseTime(detailRecord)
     )
@@ -761,11 +759,11 @@ export default function History() {
             <div className="flex items-center gap-3">
               <div
                 className="w-12 h-12 rounded-full flex items-center justify-center"
-                style={{ background: MEDICINE_INFO[detailRecord.medicine].bg }}
+                style={{ background: MEDICINE_THEMES[detailRecord.medicine].bg }}
               >
                 <Pill
                   className="w-6 h-6"
-                  style={{ color: MEDICINE_INFO[detailRecord.medicine].color }}
+                  style={{ color: MEDICINE_THEMES[detailRecord.medicine].color }}
                 />
               </div>
               <div>
@@ -775,12 +773,11 @@ export default function History() {
                 <span
                   className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
                   style={{
-                    background: MEDICINE_INFO[detailRecord.medicine].color,
+                    background: MEDICINE_THEMES[detailRecord.medicine].chipBg,
+                    color: MEDICINE_THEMES[detailRecord.medicine].color,
                   }}
                 >
-                  {detailRecord.medicine === 'acetaminophen'
-                    ? '아세트아미노펜'
-                    : '이부프로펜'}
+                  {MEDICINE_INFO[detailRecord.medicine].name}
                 </span>
               </div>
             </div>
@@ -822,7 +819,7 @@ export default function History() {
                 <span className="text-sm text-smart-text-secondary">투약량</span>
                 <span className="text-sm font-medium text-smart-text">
                   <span className="text-base font-semibold">{detailRecord.amountMg}mg</span>
-                  <span className="text-xs text-smart-text-muted"> ({detailRecord.amountMl}ml)</span>
+                  <span className="text-xs text-smart-text-muted"> ({detailRecord.amountMl}{getDoseUnitLabelForConcentration(detailRecord.concentration)})</span>
                 </span>
               </div>
               <div className="flex items-center justify-between">

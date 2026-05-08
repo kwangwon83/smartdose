@@ -9,15 +9,37 @@ export function buildShareText(
   childName: string,
   time: string,
   medicine: string,
-  doseMl: number,
+  doseAmount: number,
   doseMg: number,
   nextDoseTime: string,
+): string
+export function buildShareText(
+  childName: string,
+  time: string,
+  medicine: string,
+  doseAmount: number,
+  doseUnitLabel: string,
+  doseMg: number,
+  nextDoseTime: string,
+): string
+export function buildShareText(
+  childName: string,
+  time: string,
+  medicine: string,
+  doseAmount: number,
+  doseUnitOrMg: string | number,
+  doseMgOrNextDoseTime: number | string,
+  maybeNextDoseTime?: string,
 ) {
+  const doseUnitLabel = typeof doseUnitOrMg === 'string' ? doseUnitOrMg : 'ml'
+  const doseMg = typeof doseUnitOrMg === 'string' ? Number(doseMgOrNextDoseTime) : doseUnitOrMg
+  const nextDoseTime = typeof doseUnitOrMg === 'string' ? maybeNextDoseTime : String(doseMgOrNextDoseTime)
+
   return `[투약 기록]
 아이: ${childName}
 시간: ${time}
 약품: ${medicine}
-용량: ${doseMl}ml (${doseMg}mg)
+용량: ${doseAmount}${doseUnitLabel} (${doseMg}mg)
 다음 투약 가능: ${nextDoseTime}`
 }
 

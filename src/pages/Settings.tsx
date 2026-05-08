@@ -31,6 +31,8 @@ import { useAppContext } from '@/contexts/AppContext'
 import type { Child } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
 import { cn } from '@/lib/utils'
+import { getDefaultChildAvatar, inferChildGender, isDefaultChildAvatar, readImageFileAsDataUrl, type ChildGender } from '@/lib/children'
+import { MEDICINE_THEMES } from '@/lib/dosage'
 
 const STORAGE_PREFS_KEY = 'smartdose_prefs_v1'
 
@@ -184,7 +186,8 @@ interface ChildFormData {
   name: string
   birthDate: string
   weight: string
-  gender: 'male' | 'female'
+  gender: ChildGender
+  avatar: string
 }
 
 const emptyForm: ChildFormData = {
@@ -192,6 +195,7 @@ const emptyForm: ChildFormData = {
   birthDate: '',
   weight: '',
   gender: 'male',
+  avatar: getDefaultChildAvatar('male'),
 }
 
 const medicineOptions: { value: 'acetaminophen' | 'ibuprofen' | 'dexibuprofen'; label: string }[] = [
@@ -262,12 +266,13 @@ export default function Settings() {
 
   const openEditChild = useCallback((child: Child) => {
     setEditingChild(child)
-    const gender = child.avatar.includes('child-avatar-2') ? 'female' : 'male'
+    const gender = inferChildGender(child)
     setChildForm({
       name: child.name,
       birthDate: child.birthDate,
       weight: String(child.weight),
       gender,
+      avatar: child.avatar,
     })
     setFormErrors({})
     setChildModalOpen(true)
@@ -289,12 +294,29 @@ export default function Settings() {
     return Object.keys(errors).length === 0
   }, [childForm])
 
+  const handleChildGenderChange = useCallback((gender: ChildGender) => {
+    setChildForm((prev) => ({
+      ...prev,
+      gender,
+      avatar: isDefaultChildAvatar(prev.avatar) ? getDefaultChildAvatar(gender) : prev.avatar,
+    }))
+  }, [])
+
+  const handleChildPhotoChange = useCallback(async (file: File | undefined) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      showToast('이미지 파일을 선택해주세요', 'error')
+      return
+    }
+    const avatar = await readImageFileAsDataUrl(file)
+    setChildForm((prev) => ({ ...prev, avatar }))
+  }, [])
+
   const saveChild = useCallback(() => {
     if (!validateChildForm()) return
     const weight = parseFloat(parseFloat(childForm.weight).toFixed(1))
-    const avatar = childForm.gender === 'female' ? '/child-avatar-2.svg' : '/child-avatar-1.svg'
     if (editingChild) {
-      const updated: Child = { ...editingChild, name: childForm.name.trim(), birthDate: childForm.birthDate, weight, avatar }
+      const updated: Child = { ...editingChild, name: childForm.name.trim(), birthDate: childForm.birthDate, weight, avatar: childForm.avatar, gender: childForm.gender }
       updateChild(updated)
       showToast('정보가 수정되었어요', 'success')
     } else {
@@ -303,7 +325,8 @@ export default function Settings() {
         name: childForm.name.trim(),
         birthDate: childForm.birthDate,
         weight,
-        avatar,
+        avatar: childForm.avatar,
+        gender: childForm.gender,
       }
       addChild(newChild)
       showToast(`${newChild.name} 정보가 추가되었어요`, 'success')
@@ -724,6 +747,23 @@ export default function Settings() {
                 {editingChild ? '아이 정보 수정' : '아이 정보'}
               </DialogTitle>
             </DialogHeader>
+            <div className="flex flex-col items-center gap-3 mb-5">
+              <img
+                src={childForm.avatar}
+                alt="아이 사진 미리보기"
+                className="w-20 h-20 rounded-full object-cover bg-[#F8FAFC] border border-smart-border"
+              />
+              <label className="h-9 px-4 rounded-full border border-smart-border bg-white text-sm font-semibold text-smart-text-secondary flex items-center justify-center gap-1.5 active:scale-[0.98] transition-transform cursor-pointer">
+                <CloudUpload className="w-4 h-4" />
+                사진 선택
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(e) => void handleChildPhotoChange(e.target.files?.[0])}
+                />
+              </label>
+            </div>
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium text-smart-text mb-1.5 block">이름</label>
@@ -757,7 +797,7 @@ export default function Settings() {
                 <label className="text-sm font-medium text-smart-text mb-1.5 block">성별</label>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setChildForm((prev) => ({ ...prev, gender: 'male' }))}
+                    onClick={() => handleChildGenderChange('male')}
                     className={cn(
                       'flex-1 h-12 rounded-xl border font-medium text-sm transition-all',
                       childForm.gender === 'male'
@@ -768,7 +808,7 @@ export default function Settings() {
                     남아
                   </button>
                   <button
-                    onClick={() => setChildForm((prev) => ({ ...prev, gender: 'female' }))}
+                    onClick={() => handleChildGenderChange('female')}
                     className={cn(
                       'flex-1 h-12 rounded-xl border font-medium text-sm transition-all',
                       childForm.gender === 'female'
@@ -951,30 +991,29 @@ export default function Settings() {
               <DialogTitle className="text-lg font-semibold text-center">기본 약품 선택</DialogTitle>
             </DialogHeader>
             <div className="space-y-2">
-              {medicineOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleSelectMedicine(option.value)}
-                  className={cn(
-                    'w-full h-14 rounded-xl border flex items-center px-4 gap-3 transition-all',
-                    prefs.defaultMedicine === option.value
-                      ? 'border-smart-primary bg-[rgba(20,184,166,0.08)]'
-                      : 'border-smart-border',
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'flex-1 text-left text-sm font-medium',
-                      prefs.defaultMedicine === option.value ? 'text-smart-primary' : 'text-smart-text',
-                    )}
+              {medicineOptions.map((option) => {
+                const active = prefs.defaultMedicine === option.value
+                const theme = MEDICINE_THEMES[option.value]
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => handleSelectMedicine(option.value)}
+                    className="w-full h-14 rounded-xl border flex items-center px-4 gap-3 transition-all"
+                    style={{
+                      background: active ? theme.gradient : '#FFFFFF',
+                      borderColor: active ? theme.border : '#E2E8F0',
+                    }}
                   >
-                    {option.label}
-                  </span>
-                  {prefs.defaultMedicine === option.value && (
-                    <Check className="w-5 h-5 text-smart-primary" />
-                  )}
-                </button>
-              ))}
+                    <span
+                      className="flex-1 text-left text-sm font-medium"
+                      style={{ color: active ? theme.color : '#0F172A' }}
+                    >
+                      {option.label}
+                    </span>
+                    {active && <Check className="w-5 h-5" style={{ color: theme.color }} />}
+                  </button>
+                )
+              })}
             </div>
           </div>
         </DialogContent>
