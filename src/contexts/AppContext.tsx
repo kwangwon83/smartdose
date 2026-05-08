@@ -17,6 +17,7 @@ export interface DosageRecord {
   amountMg: number
   timestamp: string
   memo?: string
+  nextDoseTime?: string
 }
 
 export type AuthProvider = 'kakao' | 'naver' | 'google'
@@ -56,6 +57,7 @@ interface AppContextType extends AppState {
   updateChild: (child: Child) => void
   removeChild: (id: string) => void
   addDosageRecord: (record: DosageRecord) => void
+  updateDosageRecord: (record: DosageRecord) => void
   deleteDosageRecord: (id: string) => void
   setAlarmEnabled: (enabled: boolean) => void
   setNextDoseTime: (time: string | null) => void
@@ -141,6 +143,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
+  const updateDosageRecord = useCallback((record: DosageRecord) => {
+    setState((prev) => ({
+      ...prev,
+      dosageRecords: prev.dosageRecords.map((r) => (r.id === record.id ? record : r)),
+    }))
+  }, [])
+
   const deleteDosageRecord = useCallback((id: string) => {
     setState((prev) => ({
       ...prev,
@@ -173,6 +182,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateChild,
         removeChild,
         addDosageRecord,
+        updateDosageRecord,
         deleteDosageRecord,
         setAlarmEnabled,
         setNextDoseTime,
