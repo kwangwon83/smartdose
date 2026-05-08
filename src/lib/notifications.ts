@@ -1,4 +1,4 @@
-export type DoseMedicine = 'acetaminophen' | 'ibuprofen'
+export type DoseMedicine = 'acetaminophen' | 'ibuprofen' | 'dexibuprofen'
 
 export interface DoseAlarmData {
   time: string
@@ -12,6 +12,7 @@ export const SMARTDOSE_ALARM_KEY = 'smartdose_alarm_v1'
 const MEDICINE_NAMES: Record<DoseMedicine, string> = {
   acetaminophen: '아세트아미노펜',
   ibuprofen: '이부프로펜',
+  dexibuprofen: '덱시부프로펜',
 }
 
 const scheduledTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
@@ -40,7 +41,11 @@ export function getStoredDoseAlarm(): DoseAlarmData | null {
     if (
       typeof parsed.time === 'string' &&
       typeof parsed.childName === 'string' &&
-      (parsed.medicine === 'acetaminophen' || parsed.medicine === 'ibuprofen') &&
+      (
+        parsed.medicine === 'acetaminophen' ||
+        parsed.medicine === 'ibuprofen' ||
+        parsed.medicine === 'dexibuprofen'
+      ) &&
       typeof parsed.enabled === 'boolean'
     ) {
       return parsed as DoseAlarmData

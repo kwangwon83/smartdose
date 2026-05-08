@@ -34,6 +34,13 @@ const MEDICINE_INFO: Record<dosageLib.MedicineType, { name: string; range: [numb
     interval: '6~8시간',
     desc: '해열·소염·진통 / 6~8시간 간격',
   },
+  dexibuprofen: {
+    name: '덱시부프로펜',
+    range: [5, 7],
+    maxDoses: 4,
+    interval: '4~6시간',
+    desc: '해열·소염·진통 / 4~6시간 간격',
+  },
 }
 
 // ─── Helpers ───
@@ -113,7 +120,18 @@ export default function Home() {
 
   const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const product = dosageLib.PRODUCTS[medicine][productIndex]
+  const product = dosageLib.PRODUCTS[medicine][productIndex] ?? dosageLib.PRODUCTS[medicine][0]
+  const concentrationOptions = useMemo(
+    () => Array.from(new Set(dosageLib.PRODUCTS[medicine].map((p) => p.concentrationLabel))),
+    [medicine]
+  )
+  const filteredProducts = useMemo(
+    () =>
+      dosageLib.PRODUCTS[medicine]
+        .map((p, idx) => ({ product: p, index: idx }))
+        .filter(({ product: p }) => p.concentrationLabel === product.concentrationLabel),
+    [medicine, product.concentrationLabel]
+  )
   const dosage = useMemo(() => calcDosage(weight, medicine, product.concentration), [weight, medicine, product])
 
   const isWeightValid = weight >= 3 && weight <= 60
@@ -172,6 +190,11 @@ export default function Home() {
     setMedicine(nextMedicine)
     setProductIndex(0)
   }, [])
+
+  const handleSelectConcentration = useCallback((concentrationLabel: string) => {
+    const nextIndex = dosageLib.PRODUCTS[medicine].findIndex((p) => p.concentrationLabel === concentrationLabel)
+    setProductIndex(nextIndex >= 0 ? nextIndex : 0)
+  }, [medicine])
 
   const onSelectChild = (child: typeof currentChild) => {
     setCurrentChild(child)
@@ -347,7 +370,7 @@ export default function Home() {
           className="flex flex-col gap-2"
         >
           <div className="flex gap-2">
-            {(['acetaminophen', 'ibuprofen'] as dosageLib.MedicineType[]).map((m) => {
+            {(['acetaminophen', 'ibuprofen', 'dexibuprofen'] as dosageLib.MedicineType[]).map((m) => {
               const active = medicine === m
               return (
                 <button
@@ -408,7 +431,7 @@ export default function Home() {
               {/* Concentration */}
               <div className="text-center mb-4">
                 <p className="text-xs text-smart-text-muted">
-                  기준: {product.concentration}mg / 5ml
+                  기준: {product.concentrationLabel}
                 </p>
                 <p className="text-xs text-smart-text-muted flex items-center justify-center gap-1 mt-0.5">
                   <AlertCircle className="w-3 h-3" />
@@ -424,6 +447,26 @@ export default function Home() {
                   </p>
                 </div>
               )}
+
+              {/* Concentration tabs */}
+              <div className="mb-4 flex flex-wrap justify-center gap-2">
+                {concentrationOptions.map((concentrationLabel) => {
+                  const active = product.concentrationLabel === concentrationLabel
+                  return (
+                    <button
+                      key={concentrationLabel}
+                      onClick={() => handleSelectConcentration(concentrationLabel)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        active
+                          ? 'bg-smart-primary text-white'
+                          : 'bg-smart-primary/5 text-smart-text-secondary border border-smart-border'
+                      }`}
+                    >
+                      {concentrationLabel}
+                    </button>
+                  )
+                })}
+              </div>
 
               {/* Max dose warning */}
               {dosage.maxMg > maxMg && (
@@ -499,17 +542,25 @@ export default function Home() {
                   className="overflow-hidden"
                 >
                   <div className="px-5 pb-4 flex flex-col">
-                    {dosageLib.PRODUCTS[medicine].map((p, idx) => (
+                    {filteredProducts.map(({ product: p, index: idx }) => (
                       <button
                         key={p.name}
                         onClick={() => setProductIndex(idx)}
-                        className={`flex items-center justify-between py-3 text-left border-b border-[#F1F5F9] last:border-0 ${
+                        className={`flex items-center justify-between gap-3 py-3 text-left border-b border-[#F1F5F9] last:border-0 ${
                           productIndex === idx ? 'bg-smart-primary/5 -mx-5 px-5 border-l-[3px] border-l-smart-primary' : ''
                         }`}
                       >
-                        <div>
-                          <p className="text-sm text-smart-text">{p.name}</p>
-                          <p className="text-xs text-smart-text-muted">{p.concentration}mg/5ml</p>
+                        <div className="w-14 h-14 rounded-xl bg-[#F1F5F9] overflow-hidden shrink-0">
+                          <img
+                            src={p.imageSrc}
+                            alt={`${p.name} 제품 사진`}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-smart-text font-medium">{p.name}</p>
+                          <p className="text-xs text-smart-text-muted">{p.ingredient} · {p.concentrationLabel}</p>
+                          <p className="text-xs text-smart-text-muted mt-0.5">{p.doseGuide} · {p.intervalGuide}</p>
                         </div>
                         {productIndex === idx && (
                           <CheckCircle className="w-4 h-4 text-smart-primary shrink-0" />

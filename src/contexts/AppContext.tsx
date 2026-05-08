@@ -11,7 +11,7 @@ export interface Child {
 export interface DosageRecord {
   id: string
   childId: string
-  medicine: 'acetaminophen' | 'ibuprofen'
+  medicine: 'acetaminophen' | 'ibuprofen' | 'dexibuprofen'
   concentration: string
   amountMl: number
   amountMg: number

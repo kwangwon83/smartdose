@@ -1,4 +1,4 @@
-export type MedicineType = 'acetaminophen' | 'ibuprofen'
+export type MedicineType = 'acetaminophen' | 'ibuprofen' | 'dexibuprofen'
 
 export interface PendingDosageDraft {
   medicine: MedicineType
@@ -8,7 +8,7 @@ export interface PendingDosageDraft {
 
 export const PENDING_DOSAGE_KEY = 'smartdose_pending_dosage'
 
-const MEDICINES = new Set<MedicineType>(['acetaminophen', 'ibuprofen'])
+const MEDICINES = new Set<MedicineType>(['acetaminophen', 'ibuprofen', 'dexibuprofen'])
 
 export function isPendingDosageDraft(value: unknown): value is PendingDosageDraft {
   if (!value || typeof value !== 'object') return false
