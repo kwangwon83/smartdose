@@ -24,54 +24,27 @@ import Layout from '@/components/Layout'
 import BottomSheet from '@/components/BottomSheet'
 import { useAppContext } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
-
-// ─── Types ───
-type MedicineType = 'acetaminophen' | 'ibuprofen'
-
-interface PendingDosage {
-  medicine: MedicineType
-  productIndex: number
-  weight: number
-}
-
-interface AlarmData {
-  time: string
-  childName: string
-  medicine: MedicineType
-  enabled: boolean
-}
+import {
+  MEDICINE_INTERVAL_HOURS,
+  MEDICINE_NAMES,
+  PRODUCTS,
+  getPendingDosage,
+  getProductIndexForPreference,
+  loadDosagePrefs,
+  savePendingDosageDraft,
+  type DoseAlarmData,
+  type MedicineType,
+} from '@/lib/dosage'
 
 // ─── Constants ───
-const MEDICINE_NAMES: Record<MedicineType, string> = {
-  acetaminophen: '아세트아미노펜',
-  ibuprofen: '이부프로펜',
-}
-
-const MEDICINE_INTERVAL_HOURS: Record<MedicineType, number> = {
-  acetaminophen: 4,
-  ibuprofen: 7,
-}
-
-const PRODUCTS: Record<MedicineType, { name: string; concentration: number }[]> = {
-  acetaminophen: [
-    { name: '타세놀 시럽', concentration: 100 },
-    { name: '페디아 시럽', concentration: 120 },
-    { name: '타이레놀 시럽', concentration: 160 },
-  ],
-  ibuprofen: [
-    { name: '브루펜 시럽', concentration: 100 },
-    { name: '아이프로엔 시럽', concentration: 100 },
-  ],
-}
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const MINUTES = [0, 10, 20, 30, 40, 50]
 
-const PENDING_KEY = 'smartdose_pending_dosage'
 const ALARM_KEY = 'smartdose_alarm_v1'
 const MANUAL_TIME_KEY = 'smartdose_manual_time_v1'
-
 // ─── Helpers ───
+
 function formatNumber(n: number, digits = 1) {
   return Number(n.toFixed(digits))
 }
@@ -104,25 +77,7 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-function getPendingDosage(): PendingDosage | null {
-  try {
-    const raw = localStorage.getItem(PENDING_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {
-    // ignore
-  }
-  return null
-}
-
-function savePendingDosage(dosage: PendingDosage) {
-  try {
-    localStorage.setItem(PENDING_KEY, JSON.stringify(dosage))
-  } catch {
-    // ignore
-  }
-}
-
-function getAlarm(): AlarmData | null {
+function getAlarm(): DoseAlarmData | null {
   try {
     const raw = localStorage.getItem(ALARM_KEY)
     if (raw) return JSON.parse(raw)
@@ -132,9 +87,17 @@ function getAlarm(): AlarmData | null {
   return null
 }
 
-function saveAlarm(alarm: AlarmData) {
+function scheduleDoseNotification(alarm: DoseAlarmData) {
   try {
     localStorage.setItem(ALARM_KEY, JSON.stringify(alarm))
+  } catch {
+    // ignore
+  }
+}
+
+function cancelDoseNotification() {
+  try {
+    localStorage.removeItem(ALARM_KEY)
   } catch {
     // ignore
   }
@@ -151,7 +114,15 @@ function getManualTime(): string | null {
   return null
 }
 
-/** 수동 설정된 시간을 localStorage에 저장 */
+/** 수동 설정된 시간을 Date 객체로 변환 */
+function getManualNextDoseDate(): Date | null {
+  const saved = getManualTime()
+  if (!saved) return null
+
+  const parsed = new Date(saved)
+  return isNaN(parsed.getTime()) ? null : parsed
+}
+
 function saveManualTime(time: string | null) {
   try {
     if (time) {
@@ -361,7 +332,7 @@ export default function DosageAction() {
   const { currentChild, addDosageRecord, setAlarmEnabled, setNextDoseTime } = useAppContext()
 
   const [note, setNote] = useState('')
-  const [alarmOn, setAlarmOn] = useState(false)
+  const [alarmOn, setAlarmOn] = useState(() => getAlarm()?.enabled ?? false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [shareSheetOpen, setShareSheetOpen] = useState(false)
@@ -371,46 +342,29 @@ export default function DosageAction() {
   // ─── 다음 투약 시간 관련 상태 ───
   // 시간 편집 BottomSheet 열림 여부
   const [timePickerOpen, setTimePickerOpen] = useState(false)
+  // 수동으로 설정된 다음 투약 시간 (null이면 자동 계산 사용)
+  const [manualNextDoseDate, setManualNextDoseDate] = useState<Date | null>(() => getManualNextDoseDate())
   // 수동 편집 여부 플래그
-  const [isManualEdit, setIsManualEdit] = useState(false)
+  const [isManualEdit, setIsManualEdit] = useState(() => manualNextDoseDate !== null)
   // 편집 중인 시/분 (picker 상태)
   const [pickerHour, setPickerHour] = useState(0)
   const [pickerMinute, setPickerMinute] = useState(0)
-  // 수동으로 설정된 다음 투약 시간 (null이면 자동 계산 사용)
-  const [manualNextDoseDate, setManualNextDoseDate] = useState<Date | null>(null)
 
   // Stable current time (set once on mount)
   const now = useMemo(() => new Date(), [])
 
   // Derive dosage data
   const pending = useMemo(() => getPendingDosage(), [])
-  const medicine: MedicineType = pending?.medicine ?? 'acetaminophen'
-  const productIndex = pending?.productIndex ?? 0
+  const prefs = useMemo(() => loadDosagePrefs(), [])
+  const medicine: MedicineType = pending?.medicine ?? prefs.defaultMedicine
+  const productIndex = pending?.productIndex ?? getProductIndexForPreference(medicine, prefs.defaultConcentration)
   const weight = currentChild?.weight ?? pending?.weight ?? 15
   const product = PRODUCTS[medicine][productIndex] ?? PRODUCTS.acetaminophen[0]
 
   // Persist current dosage to localStorage so refresh keeps it
   useEffect(() => {
-    savePendingDosage({ medicine, productIndex, weight })
+    savePendingDosageDraft({ medicine, productIndex, weight })
   }, [medicine, productIndex, weight])
-
-  // Initialize alarm state from localStorage
-  useEffect(() => {
-    const alarm = getAlarm()
-    if (alarm) setAlarmOn(alarm.enabled)
-  }, [])
-
-  // 마운트 시 localStorage에서 수동 설정된 시간 불러오기
-  useEffect(() => {
-    const saved = getManualTime()
-    if (saved) {
-      const parsed = new Date(saved)
-      if (!isNaN(parsed.getTime())) {
-        setManualNextDoseDate(parsed)
-        setIsManualEdit(true)
-      }
-    }
-  }, [])
 
   const dosage = useMemo(() => calcDosage(weight, medicine, product.concentration), [weight, medicine, product])
   const doseMl = formatNumber((dosage.minMl + dosage.maxMl) / 2)
@@ -461,7 +415,7 @@ export default function DosageAction() {
         } else {
           showToast('이 브라우저는 알림을 지원하지 않아요', 'info')
         }
-        saveAlarm({
+        scheduleDoseNotification({
           time: targetDate.toISOString(),
           childName,
           medicine,
@@ -470,12 +424,7 @@ export default function DosageAction() {
         setAlarmEnabled(true)
         setNextDoseTime(targetDate.toISOString())
       } else {
-        saveAlarm({
-          time: targetDate.toISOString(),
-          childName,
-          medicine,
-          enabled: false,
-        })
+        cancelDoseNotification()
         setAlarmEnabled(false)
         setNextDoseTime(null)
       }
@@ -499,6 +448,7 @@ export default function DosageAction() {
       amountMg: doseMg,
       timestamp: now.toISOString(),
       memo: note.trim() || undefined,
+      nextDoseTime: nextDoseDate.toISOString(),
     }
     addDosageRecord(record)
     setNextDoseTime(nextDoseDate.toISOString())
