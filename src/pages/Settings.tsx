@@ -223,6 +223,7 @@ export default function Settings() {
     setAlarmEnabled,
     deleteDosageRecord,
     logout,
+    resetAppState,
   } = useAppContext()
 
   const navigate = useNavigate()
@@ -334,14 +335,13 @@ export default function Settings() {
       showToast('확인 문구를 정확히 입력해주세요', 'error')
       return
     }
-    // Clear all
-    logout()
+    resetAppState()
     setConfirmWithdraw(false)
     setWithdrawStep2(false)
     setWithdrawInput('')
     showToast('탈퇴가 완료되었어요', 'success')
     navigate('/')
-  }, [withdrawStep2, withdrawInput, logout, navigate])
+  }, [withdrawStep2, withdrawInput, resetAppState, navigate])
 
   const handleExportRecords = useCallback(() => {
     if (dosageRecords.length === 0) {
@@ -814,7 +814,7 @@ export default function Settings() {
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-center">아이 정보 삭제</DialogTitle>
             <DialogDescription className="text-center text-sm text-smart-text-secondary">
-              정말 삭제할까요? 이 아이의 투약 기록은 유지됩니다.
+              정말 삭제할까요? 관련 투약 기록도 함께 삭제되며 복구할 수 없습니다.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-row gap-2 mt-4">
