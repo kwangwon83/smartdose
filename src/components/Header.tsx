@@ -21,7 +21,7 @@ export default function Header() {
       style={{ borderBottom: '1px solid #E2E8F0' }}
     >
       <Link to="/" className="flex items-center gap-2">
-        <img src="./logo.svg" alt="SmartDose" className="w-8 h-8" />
+        <img src="/logo.svg" alt="SmartDose" className="w-8 h-8" />
         <span className="text-sm font-semibold text-smart-text">SmartDose</span>
       </Link>
       <div>
