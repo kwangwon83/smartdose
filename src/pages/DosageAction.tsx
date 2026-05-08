@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -304,6 +304,7 @@ function TimeWheelPicker({
 
 export default function DosageAction() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { currentChild, addDosageRecord, setAlarmEnabled, setNextDoseTime } = useAppContext()
 
   const [note, setNote] = useState('')
@@ -371,24 +372,48 @@ export default function DosageAction() {
   /** 알람 토글 - 현재 표시된 시간(수동/자동) 기준으로 설정 */
   const handleToggleAlarm = useCallback(
     async (enabled: boolean) => {
-      setAlarmOn(enabled)
       const targetDate = nextDoseDate
+      const alarm: DoseAlarmData = {
+        time: targetDate.toISOString(),
+        childName,
+        medicine,
+        enabled,
+      }
+
       if (enabled) {
-        if ('Notification' in window && 'requestPermission' in Notification) {
-          try {
-            const permission = await Notification.requestPermission()
-            if (permission === 'granted') {
-              showToast(`${formatTime(targetDate)}에 알람이 설정되었어요`, 'success')
-            } else if (permission === 'denied') {
+        if (!('Notification' in window) || !('requestPermission' in Notification)) {
+          showToast('이 브라우저는 알림을 지원하지 않아요', 'info')
+          return
+        }
+
+        try {
+          const permission =
+            Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission()
+
+          if (permission !== 'granted') {
+            setAlarmOn(false)
+            if (permission === 'denied') {
               showToast('알림 설정을 위해 브라우저 설정에서 권한을 허용해주세요', 'error')
             } else {
               showToast('알림 권한이 허용되지 않았어요. 수동으로 확인해주세요.', 'info')
             }
-          } catch {
-            showToast('알림 권한 요청에 실패했어요', 'error')
+            return
           }
-        } else {
-          showToast('이 브라우저는 알림을 지원하지 않아요', 'info')
+
+          const scheduled = await scheduleDoseNotification(alarm)
+          if (!scheduled) {
+            setAlarmOn(false)
+            showToast('이미 지난 시간이라 알람을 설정하지 못했어요', 'error')
+            return
+          }
+
+          setAlarmOn(true)
+          setAlarmEnabled(true)
+          setNextDoseTime(targetDate.toISOString())
+          showToast(`${formatTime(targetDate)}에 알람이 설정되었어요`, 'success')
+        } catch {
+          setAlarmOn(false)
+          showToast('알림 권한 요청에 실패했어요', 'error')
         }
         scheduleDoseNotification({
           time: targetDate.toISOString(),
@@ -447,7 +472,7 @@ export default function DosageAction() {
     const result = await executeShareTarget(shareTarget, text)
     showToast(result.message, result.type)
     setShareSheetOpen(false)
-  }, [childName, currentTimeStr, medicine, doseMl, doseMg, nextDoseTimeStr, shareTarget])
+  }, [childName, currentTimeStr, medicine, doseMl, doseMg, nextDoseTimeStr, shareTarget, handleShareResult])
 
   // ─── 시간 편집 핸들러 ───
 
@@ -478,9 +503,18 @@ export default function DosageAction() {
     setManualNextDoseDate(newDate)
     setIsManualEdit(true)
     saveManualTime(newDate.toISOString())
+    if (alarmOn && 'Notification' in window && Notification.permission === 'granted') {
+      void scheduleDoseNotification({
+        time: newDate.toISOString(),
+        childName,
+        medicine,
+        enabled: true,
+      })
+      setNextDoseTime(newDate.toISOString())
+    }
     setTimePickerOpen(false)
     showToast('다음 투약 시간이 수동 설정되었어요', 'success')
-  }, [pickerHour, pickerMinute])
+  }, [alarmOn, childName, medicine, pickerHour, pickerMinute, setNextDoseTime])
 
   /** 취소 버튼 → BottomSheet 닫기 */
   const handleCancelTimeEdit = useCallback(() => {
@@ -492,9 +526,18 @@ export default function DosageAction() {
     setManualNextDoseDate(null)
     setIsManualEdit(false)
     saveManualTime(null)
+    if (alarmOn && 'Notification' in window && Notification.permission === 'granted') {
+      void scheduleDoseNotification({
+        time: autoNextDoseDate.toISOString(),
+        childName,
+        medicine,
+        enabled: true,
+      })
+      setNextDoseTime(autoNextDoseDate.toISOString())
+    }
     setTimePickerOpen(false)
     showToast('자동 계산 시간으로 되돌렸어요', 'info')
-  }, [])
+  }, [alarmOn, autoNextDoseDate, childName, medicine, setNextDoseTime])
 
   // Animation helpers
   const cardItemVariants = {
