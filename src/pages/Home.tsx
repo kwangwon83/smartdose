@@ -179,7 +179,9 @@ export default function Home() {
       showToast('몸무게를 먼저 입력해주세요', 'info')
       return
     }
-    navigate('/dosage')
+    const draft: PendingDosageDraft = { medicine, productIndex, weight }
+    savePendingDosageDraft(draft)
+    navigate('/dosage', { state: draft })
   }
 
   const recentRecords = dosageRecords.slice(0, 3)
