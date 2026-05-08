@@ -16,9 +16,9 @@ import {
 import Layout from '@/components/Layout'
 import { useAppContext } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
+import { getProductIndexForPreference, loadPrefs, type MedicineType } from '@/lib/preferences'
 
 // ─── Types ───
-type MedicineType = 'acetaminophen' | 'ibuprofen'
 
 interface Product {
   name: string
@@ -123,9 +123,12 @@ export default function Home() {
   const navigate = useNavigate()
   const { currentChild, children, dosageRecords, setCurrentChild, addChild } = useAppContext()
 
+  const initialPrefs = useMemo(() => loadPrefs(), [])
   const [weight, setWeight] = useState(currentChild?.weight ?? 15)
-  const [medicine, setMedicine] = useState<MedicineType>('acetaminophen')
-  const [productIndex, setProductIndex] = useState(0)
+  const [medicine, setMedicine] = useState<MedicineType>(initialPrefs.defaultMedicine)
+  const [productIndex, setProductIndex] = useState(() =>
+    getProductIndexForPreference(PRODUCTS[initialPrefs.defaultMedicine], initialPrefs.defaultConcentration),
+  )
   const [accordionOpen, setAccordionOpen] = useState<string | null>(null)
   const [childSelectorOpen, setChildSelectorOpen] = useState(false)
 
@@ -161,12 +164,19 @@ export default function Home() {
     }
   }, [])
 
+  const handleSelectMedicine = (nextMedicine: MedicineType) => {
+    setMedicine(nextMedicine)
+    setProductIndex(0)
+  }
+
   const handleRecordClick = () => {
     if (!isWeightValid) {
       showToast('몸무게를 먼저 입력해주세요', 'info')
       return
     }
-    navigate('/dosage')
+    const draft: PendingDosageDraft = { medicine, productIndex, weight }
+    savePendingDosageDraft(draft)
+    navigate('/dosage', { state: draft })
   }
 
   const recentRecords = dosageRecords.slice(0, 3)
