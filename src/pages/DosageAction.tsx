@@ -24,10 +24,22 @@ import Layout from '@/components/Layout'
 import BottomSheet from '@/components/BottomSheet'
 import { useAppContext } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
-import { getPendingDosageDraft, isPendingDosageDraft, savePendingDosageDraft } from '@/lib/dosageDraft'
-import type { MedicineType } from '@/lib/dosageDraft'
+import { getProductIndexForPreference, loadPrefs, type MedicineType } from '@/lib/preferences'
 
 // ─── Types ───
+
+interface PendingDosage {
+  medicine: MedicineType
+  productIndex: number
+  weight: number
+}
+
+interface AlarmData {
+  time: string
+  childName: string
+  medicine: MedicineType
+  enabled: boolean
+}
 
 // ─── Constants ───
 const MEDICINE_NAMES: Record<MedicineType, string> = {
@@ -366,18 +378,13 @@ export default function DosageAction() {
   const now = useMemo(() => new Date(), [])
 
   // Derive dosage data
-  const routeDraft = useMemo(
-    () => (isPendingDosageDraft(location.state) ? location.state : null),
-    [location.state]
-  )
-  const pendingDraft = useMemo(() => getPendingDosageDraft(), [])
-  const dosageDraft = routeDraft ?? pendingDraft
-  const medicine: MedicineType = dosageDraft?.medicine ?? 'acetaminophen'
-  const requestedProductIndex = dosageDraft?.productIndex ?? 0
-  const weight = dosageDraft?.weight ?? 15
-  const products = PRODUCTS[medicine]
-  const productIndex = products[requestedProductIndex] ? requestedProductIndex : 0
-  const product = products[productIndex]
+  const pending = useMemo(() => getPendingDosage(), [])
+  const prefs = useMemo(() => loadPrefs(), [])
+  const medicine: MedicineType = pending?.medicine ?? prefs.defaultMedicine
+  const productIndex =
+    pending?.productIndex ?? getProductIndexForPreference(PRODUCTS[medicine], prefs.defaultConcentration)
+  const weight = currentChild?.weight ?? pending?.weight ?? 15
+  const product = PRODUCTS[medicine][productIndex] ?? PRODUCTS[medicine][0]
 
   // Persist current dosage to localStorage so refresh keeps it
   useEffect(() => {
