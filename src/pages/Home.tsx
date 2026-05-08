@@ -25,6 +25,12 @@ interface Product {
   concentration: number // mg per 5ml
 }
 
+interface PendingDosageDraft {
+  medicine: MedicineType
+  productIndex: number
+  weight: number
+}
+
 const PRODUCTS: Record<MedicineType, Product[]> = {
   acetaminophen: [
     { name: '타세놀 시럽', concentration: 100 },
@@ -54,6 +60,8 @@ const MEDICINE_INFO: Record<MedicineType, { name: string; range: [number, number
   },
 }
 
+const PENDING_DOSAGE_KEY = 'smartdose_pending_dosage'
+
 // ─── Helpers ───
 function formatNumber(n: number, digits = 1) {
   return Number(n.toFixed(digits))
@@ -70,6 +78,14 @@ function calcDosage(weight: number, medicine: MedicineType, concentration: numbe
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function savePendingDosageDraft(draft: PendingDosageDraft) {
+  try {
+    localStorage.setItem(PENDING_DOSAGE_KEY, JSON.stringify(draft))
+  } catch {
+    // ignore
+  }
 }
 
 // ─── Components ───
@@ -131,16 +147,6 @@ export default function Home() {
 
   const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Auto-adjust product index when medicine changes
-  useEffect(() => {
-    setProductIndex(0)
-  }, [medicine])
-
-  // Sync weight when current child changes
-  useEffect(() => {
-    if (currentChild) setWeight(currentChild.weight)
-  }, [currentChild])
-
   const product = PRODUCTS[medicine][productIndex]
   const dosage = useMemo(() => calcDosage(weight, medicine, product.concentration), [weight, medicine, product])
 
@@ -176,6 +182,7 @@ export default function Home() {
       showToast('몸무게를 먼저 입력해주세요', 'info')
       return
     }
+    savePendingDosageDraft({ medicine, productIndex, weight })
     navigate('/dosage')
   }
 
@@ -194,6 +201,11 @@ export default function Home() {
     }
     return () => document.removeEventListener('mousedown', handler)
   }, [childSelectorOpen])
+
+  const handleSelectMedicine = useCallback((nextMedicine: MedicineType) => {
+    setMedicine(nextMedicine)
+    setProductIndex(0)
+  }, [])
 
   const onSelectChild = (child: typeof currentChild) => {
     setCurrentChild(child)
@@ -215,7 +227,7 @@ export default function Home() {
       name,
       birthDate: '',
       weight: w,
-      avatar: children.length % 2 === 0 ? './child-avatar-1.svg' : './child-avatar-2.svg',
+      avatar: children.length % 2 === 0 ? '/child-avatar-1.svg' : '/child-avatar-2.svg',
     }
     addChild(newChild)
     setCurrentChild(newChild)
@@ -237,7 +249,7 @@ export default function Home() {
         className="relative w-full h-[180px] overflow-hidden"
       >
         <img
-          src="./hero-illustration.svg"
+          src="/hero-illustration.svg"
           alt="hero"
           className="w-full h-full object-cover"
         />
@@ -374,7 +386,7 @@ export default function Home() {
               return (
                 <button
                   key={m}
-                  onClick={() => setMedicine(m)}
+                  onClick={() => handleSelectMedicine(m)}
                   className={`flex-1 h-12 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors active:scale-[0.97] ${
                     active
                       ? 'bg-smart-primary text-white'

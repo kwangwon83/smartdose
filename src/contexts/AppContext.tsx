@@ -17,6 +17,7 @@ export interface DosageRecord {
   amountMg: number
   timestamp: string
   memo?: string
+  nextDoseTime?: string
 }
 
 export type AuthProvider = 'kakao' | 'naver' | 'google'

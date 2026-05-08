@@ -1,4 +1,4 @@
-import { useState, useCallback, type ReactNode } from 'react'
+import { useState, useCallback, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { CheckCircle, AlertTriangle, Info, X } from 'lucide-react'
@@ -32,7 +32,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     }, 3000)
   }, [])
 
-  toastController = { showToast }
+  useEffect(() => {
+    toastController = { showToast }
+    return () => {
+      toastController = null
+    }
+  }, [showToast])
 
   const iconMap = {
     success: <CheckCircle className="w-5 h-5 text-green-500" />,
