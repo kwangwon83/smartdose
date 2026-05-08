@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
-import { useLocation, useNavigate } from 'react-router'
+import { useNavigate } from 'react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -304,7 +304,6 @@ function TimeWheelPicker({
 
 export default function DosageAction() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { currentChild, addDosageRecord, setAlarmEnabled, setNextDoseTime } = useAppContext()
 
   const [note, setNote] = useState('')
@@ -373,7 +372,7 @@ export default function DosageAction() {
   const handleToggleAlarm = useCallback(
     async (enabled: boolean) => {
       const targetDate = nextDoseDate
-      const alarm: DoseAlarmData = {
+      const alarm: dosageLib.DoseAlarmData = {
         time: targetDate.toISOString(),
         childName,
         medicine,
@@ -400,13 +399,7 @@ export default function DosageAction() {
             return
           }
 
-          const scheduled = await scheduleDoseNotification(alarm)
-          if (!scheduled) {
-            setAlarmOn(false)
-            showToast('이미 지난 시간이라 알람을 설정하지 못했어요', 'error')
-            return
-          }
-
+          scheduleDoseNotification(alarm)
           setAlarmOn(true)
           setAlarmEnabled(true)
           setNextDoseTime(targetDate.toISOString())
@@ -415,14 +408,6 @@ export default function DosageAction() {
           setAlarmOn(false)
           showToast('알림 권한 요청에 실패했어요', 'error')
         }
-        scheduleDoseNotification({
-          time: targetDate.toISOString(),
-          childName,
-          medicine,
-          enabled: true,
-        })
-        setAlarmEnabled(true)
-        setNextDoseTime(targetDate.toISOString())
       } else {
         cancelDoseNotification()
         setAlarmEnabled(false)
@@ -472,7 +457,7 @@ export default function DosageAction() {
     const result = await executeShareTarget(shareTarget, text)
     showToast(result.message, result.type)
     setShareSheetOpen(false)
-  }, [childName, currentTimeStr, medicine, doseMl, doseMg, nextDoseTimeStr, shareTarget, handleShareResult])
+  }, [childName, currentTimeStr, medicine, doseMl, doseMg, nextDoseTimeStr, shareTarget])
 
   // ─── 시간 편집 핸들러 ───
 
