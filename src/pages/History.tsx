@@ -473,7 +473,8 @@ export default function History() {
       ...detailRecord,
       nextDoseTime: newDate.toISOString(),
     }
-    updateDosageRecord(updated)
+    deleteDosageRecord(detailRecord.id)
+    addDosageRecord(updated)
     setDetailRecord(updated)
     setTimePickerOpen(false)
     showToast('다음 투약 시간이 수정되었습니다', 'success')
@@ -486,10 +487,17 @@ export default function History() {
   const handleResetToAuto = useCallback(() => {
     if (!detailRecord) return
     const updated: DosageRecord = {
-      ...detailRecord,
-      nextDoseTime: undefined,
+      id: detailRecord.id,
+      childId: detailRecord.childId,
+      medicine: detailRecord.medicine,
+      concentration: detailRecord.concentration,
+      amountMl: detailRecord.amountMl,
+      amountMg: detailRecord.amountMg,
+      timestamp: detailRecord.timestamp,
+      memo: detailRecord.memo,
     }
-    updateDosageRecord(updated)
+    deleteDosageRecord(detailRecord.id)
+    addDosageRecord(updated)
     setDetailRecord(updated)
     setTimePickerOpen(false)
     showToast('자동 계산 시간으로 되돌렸어요', 'info')

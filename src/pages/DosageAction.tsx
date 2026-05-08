@@ -336,7 +336,7 @@ export default function DosageAction() {
   const { currentChild, addDosageRecord, setAlarmEnabled, setNextDoseTime } = useAppContext()
 
   const [note, setNote] = useState('')
-  const [alarmOn, setAlarmOn] = useState(getInitialAlarmEnabled)
+  const [alarmOn, setAlarmOn] = useState(() => getAlarm()?.enabled ?? false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [shareSheetOpen, setShareSheetOpen] = useState(false)
@@ -347,13 +347,13 @@ export default function DosageAction() {
   // 시간 편집 BottomSheet 열림 여부
   const [timePickerOpen, setTimePickerOpen] = useState(false)
   // 수동으로 설정된 다음 투약 시간 (null이면 자동 계산 사용)
-  const initialManualNextDoseDate = useMemo(() => getInitialManualNextDoseDate(), [])
-  const [manualNextDoseDate, setManualNextDoseDate] = useState<Date | null>(initialManualNextDoseDate)
+  const [manualNextDoseDate, setManualNextDoseDate] = useState<Date | null>(() => getManualNextDoseDate())
   // 수동 편집 여부 플래그
-  const [isManualEdit, setIsManualEdit] = useState(() => initialManualNextDoseDate !== null)
+  const [isManualEdit, setIsManualEdit] = useState(() => manualNextDoseDate !== null)
   // 편집 중인 시/분 (picker 상태)
   const [pickerHour, setPickerHour] = useState(0)
   const [pickerMinute, setPickerMinute] = useState(0)
+
   // Stable current time (set once on mount)
   const now = useMemo(() => new Date(), [])
 

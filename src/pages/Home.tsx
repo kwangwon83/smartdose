@@ -134,12 +134,7 @@ export default function Home() {
 
   const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Sync weight when current child changes
-  useEffect(() => {
-    if (currentChild) setWeight(currentChild.weight)
-  }, [currentChild])
-
-  const product = PRODUCTS[medicine][productIndex] ?? PRODUCTS[medicine][0]
+  const product = PRODUCTS[medicine][productIndex]
   const dosage = useMemo(() => calcDosage(weight, medicine, product.concentration), [weight, medicine, product])
 
   const isWeightValid = weight >= 3 && weight <= 60
