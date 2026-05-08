@@ -61,7 +61,7 @@ function formatTimeKorean(date: Date | string) {
 }
 
 function getNextDoseTime(record: DosageRecord): string {
-  const custom = (record as any).nextDoseTime
+  const custom = record.nextDoseTime
   if (custom) {
     return formatTimeKorean(new Date(custom))
   }
@@ -358,7 +358,7 @@ export default function History() {
     children,
     dosageRecords,
     deleteDosageRecord,
-    addDosageRecord,
+    updateDosageRecord,
   } = useAppContext()
 
   const [selectedChildId, setSelectedChildId] = useState<string>('all')
@@ -430,18 +430,17 @@ export default function History() {
       ...detailRecord,
       memo: noteDraft.trim() || undefined,
     }
-    deleteDosageRecord(detailRecord.id)
-    addDosageRecord(updated)
+    updateDosageRecord(updated)
     setDetailRecord(updated)
     setEditingNote(false)
     showToast('메모가 수정되었어요', 'success')
-  }, [detailRecord, noteDraft, deleteDosageRecord, addDosageRecord])
+  }, [detailRecord, noteDraft, updateDosageRecord])
 
   // ─── Time edit handlers ───
   const handleOpenTimePicker = useCallback(() => {
     if (!detailRecord) return
-    const base = (detailRecord as any).nextDoseTime
-      ? new Date((detailRecord as any).nextDoseTime)
+    const base = detailRecord.nextDoseTime
+      ? new Date(detailRecord.nextDoseTime)
       : (() => {
           const d = new Date(detailRecord.timestamp)
           d.setHours(d.getHours() + MEDICINE_INFO[detailRecord.medicine].intervalHours)
@@ -454,8 +453,8 @@ export default function History() {
 
   const handleConfirmTimeEdit = useCallback(() => {
     if (!detailRecord) return
-    const base = (detailRecord as any).nextDoseTime
-      ? new Date((detailRecord as any).nextDoseTime)
+    const base = detailRecord.nextDoseTime
+      ? new Date(detailRecord.nextDoseTime)
       : (() => {
           const d = new Date(detailRecord.timestamp)
           d.setHours(d.getHours() + MEDICINE_INFO[detailRecord.medicine].intervalHours)
@@ -470,16 +469,15 @@ export default function History() {
       0,
       0
     )
-    const updated = {
+    const updated: DosageRecord = {
       ...detailRecord,
       nextDoseTime: newDate.toISOString(),
-    } as DosageRecord
-    deleteDosageRecord(detailRecord.id)
-    addDosageRecord(updated)
+    }
+    updateDosageRecord(updated)
     setDetailRecord(updated)
     setTimePickerOpen(false)
     showToast('다음 투약 시간이 수정되었습니다', 'success')
-  }, [detailRecord, pickerHour, pickerMinute, deleteDosageRecord, addDosageRecord])
+  }, [detailRecord, pickerHour, pickerMinute, updateDosageRecord])
 
   const handleCancelTimeEdit = useCallback(() => {
     setTimePickerOpen(false)
@@ -487,14 +485,15 @@ export default function History() {
 
   const handleResetToAuto = useCallback(() => {
     if (!detailRecord) return
-    const updated = { ...detailRecord }
-    delete (updated as any).nextDoseTime
-    deleteDosageRecord(detailRecord.id)
-    addDosageRecord(updated)
+    const updated: DosageRecord = {
+      ...detailRecord,
+      nextDoseTime: undefined,
+    }
+    updateDosageRecord(updated)
     setDetailRecord(updated)
     setTimePickerOpen(false)
     showToast('자동 계산 시간으로 되돌렸어요', 'info')
-  }, [detailRecord, deleteDosageRecord, addDosageRecord])
+  }, [detailRecord, updateDosageRecord])
 
 
   const handleShareResult = useCallback((result: ShareResult, target: ShareTarget) => {

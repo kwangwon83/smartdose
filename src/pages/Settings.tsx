@@ -31,80 +31,7 @@ import { useAppContext } from '@/contexts/AppContext'
 import type { Child } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
 import { cn } from '@/lib/utils'
-
-const STORAGE_PREFS_KEY = 'smartdose_prefs_v1'
-
-const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0'
-const SUPPORT_EMAIL = import.meta.env.VITE_SUPPORT_EMAIL || 'support@smartdose.app'
-const SUPPORT_CONTACT_URL = import.meta.env.VITE_SUPPORT_CONTACT_URL || 'https://smartdose.app/support'
-const SUPPORT_FORM_PATH = import.meta.env.VITE_SUPPORT_FORM_PATH || '/support'
-const SUPPORT_CONTACT_METHODS = ['mailto', 'external', 'in_app'] as const
-
-type SupportContactMethod = (typeof SUPPORT_CONTACT_METHODS)[number]
-
-function getSupportContactMethod(): SupportContactMethod {
-  const configuredMethod = import.meta.env.VITE_SUPPORT_CONTACT_METHOD
-  if (SUPPORT_CONTACT_METHODS.some((method) => method === configuredMethod)) return configuredMethod
-  return 'mailto'
-}
-
-function getDiagnosticInfo(provider: string): string {
-  const diagnostics = [
-    `앱 버전: ${APP_VERSION}`,
-    `브라우저: ${navigator.userAgent}`,
-    `로그인 provider: ${provider}`,
-  ]
-  return diagnostics.join('\n')
-}
-
-function buildSupportMailto(provider: string): string {
-  const subject = '[SmartDose] 문의하기'
-  const body = [
-    '문의 내용을 작성해주세요.',
-    '',
-    '--- 진단 정보(선택) ---',
-    getDiagnosticInfo(provider),
-  ].join('\n')
-
-  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-}
-
-async function copySupportUrlToClipboard(url: string): Promise<boolean> {
-  if (!navigator.clipboard?.writeText) return false
-
-  try {
-    await navigator.clipboard.writeText(url)
-    return true
-  } catch {
-    return false
-  }
-}
-
-interface Prefs {
-  defaultMedicine: 'acetaminophen' | 'ibuprofen'
-  defaultConcentration: string
-}
-
-function loadPrefs(): Prefs {
-  try {
-    const raw = localStorage.getItem(STORAGE_PREFS_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {
-    // ignore
-  }
-  return {
-    defaultMedicine: 'acetaminophen',
-    defaultConcentration: '100mg/5ml',
-  }
-}
-
-function savePrefs(prefs: Prefs) {
-  try {
-    localStorage.setItem(STORAGE_PREFS_KEY, JSON.stringify(prefs))
-  } catch {
-    // ignore
-  }
-}
+import { loadPrefs, savePrefs, type Prefs } from '@/lib/preferences'
 
 function getAgeText(birthDate: string): string {
   const birth = new Date(birthDate)
@@ -213,6 +140,7 @@ export default function Settings() {
     setAlarmEnabled,
     deleteDosageRecord,
     logout,
+    resetAppState,
   } = useAppContext()
 
   const navigate = useNavigate()
@@ -324,14 +252,13 @@ export default function Settings() {
       showToast('확인 문구를 정확히 입력해주세요', 'error')
       return
     }
-    // Clear all
-    logout()
+    resetAppState()
     setConfirmWithdraw(false)
     setWithdrawStep2(false)
     setWithdrawInput('')
     showToast('탈퇴가 완료되었어요', 'success')
     navigate('/')
-  }, [withdrawStep2, withdrawInput, logout, navigate])
+  }, [withdrawStep2, withdrawInput, resetAppState, navigate])
 
   const handleExportRecords = useCallback(() => {
     if (dosageRecords.length === 0) {
@@ -794,7 +721,7 @@ export default function Settings() {
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold text-center">아이 정보 삭제</DialogTitle>
             <DialogDescription className="text-center text-sm text-smart-text-secondary">
-              정말 삭제할까요? 이 아이의 투약 기록은 유지됩니다.
+              정말 삭제할까요? 관련 투약 기록도 함께 삭제되며 복구할 수 없습니다.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-row gap-2 mt-4">

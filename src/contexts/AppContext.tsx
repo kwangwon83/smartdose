@@ -17,6 +17,7 @@ export interface DosageRecord {
   amountMg: number
   timestamp: string
   memo?: string
+  nextDoseTime?: string
 }
 
 export type AuthProvider = 'kakao' | 'naver' | 'google'
@@ -56,14 +57,24 @@ interface AppContextType extends AppState {
   updateChild: (child: Child) => void
   removeChild: (id: string) => void
   addDosageRecord: (record: DosageRecord) => void
+  updateDosageRecord: (record: DosageRecord) => void
   deleteDosageRecord: (id: string) => void
   setAlarmEnabled: (enabled: boolean) => void
   setNextDoseTime: (time: string | null) => void
   login: (profile: UserProfile) => void
   logout: () => void
+  resetAppState: () => void
 }
 
 const STORAGE_KEY = 'smartdose_state_v1'
+const SMARTDOSE_STORAGE_PREFIX = 'smartdose_'
+const STORAGE_KEYS_TO_RESET = new Set([
+  STORAGE_KEY,
+  'smartdose_prefs_v1',
+  'smartdose_pending_dosage',
+  'smartdose_alarm_v1',
+  'smartdose_manual_time_v1',
+])
 
 function loadState(): Partial<AppState> {
   try {
@@ -75,12 +86,57 @@ function loadState(): Partial<AppState> {
   return {}
 }
 
+function isDefaultState(state: AppState) {
+  return (
+    state.currentChild === null &&
+    state.children.length === 0 &&
+    state.dosageRecords.length === 0 &&
+    state.alarmEnabled === false &&
+    state.nextDoseTime === null &&
+    state.isLoggedIn === false &&
+    state.userProfile === null
+  )
+}
+
 function saveState(state: AppState) {
   try {
+    if (isDefaultState(state)) {
+      localStorage.removeItem(STORAGE_KEY)
+      return
+    }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   } catch {
     // ignore
   }
+}
+
+function clearSmartdoseStorage() {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+      const key = localStorage.key(i)
+      if (!key) continue
+      if (STORAGE_KEYS_TO_RESET.has(key) || key.startsWith(SMARTDOSE_STORAGE_PREFIX)) {
+        localStorage.removeItem(key)
+      }
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function cancelSmartdoseNotifications() {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return
+
+  navigator.serviceWorker.ready
+    .then((registration) => {
+      if (!('getNotifications' in registration)) return undefined
+      return registration.getNotifications().then((notifications) => {
+        notifications.forEach((notification) => notification.close())
+      })
+    })
+    .catch(() => {
+      // ignore
+    })
 }
 
 const defaultState: AppState = {
@@ -129,7 +185,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((prev) => {
       const children = prev.children.filter((c) => c.id !== id)
       const currentChild = prev.currentChild?.id === id ? (children[0] ?? null) : prev.currentChild
-      return { ...prev, children, currentChild }
+      const dosageRecords = prev.dosageRecords.filter((r) => r.childId !== id)
+      return { ...prev, children, currentChild, dosageRecords }
     })
   }, [])
 
@@ -137,6 +194,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({
       ...prev,
       dosageRecords: [record, ...prev.dosageRecords],
+    }))
+  }, [])
+
+  const updateDosageRecord = useCallback((record: DosageRecord) => {
+    setState((prev) => ({
+      ...prev,
+      dosageRecords: prev.dosageRecords.map((r) => (r.id === record.id ? record : r)),
     }))
   }, [])
 
@@ -163,6 +227,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, isLoggedIn: false, userProfile: null }))
   }, [])
 
+  const resetAppState = useCallback(() => {
+    clearSmartdoseStorage()
+    cancelSmartdoseNotifications()
+    setState(defaultState)
+  }, [])
+
   return (
     <AppContext.Provider
       value={{
@@ -172,11 +242,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateChild,
         removeChild,
         addDosageRecord,
+        updateDosageRecord,
         deleteDosageRecord,
         setAlarmEnabled,
         setNextDoseTime,
         login,
         logout,
+        resetAppState,
       }}
     >
       {children}

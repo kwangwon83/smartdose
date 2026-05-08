@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -27,12 +27,18 @@ import { showToast } from '@/components/Toast'
 import { buildShareText, executeShareTarget, type ShareTarget, type ShareResult } from '@/lib/share'
 
 // ─── Types ───
-type MedicineType = 'acetaminophen' | 'ibuprofen'
 
 interface PendingDosage {
   medicine: MedicineType
   productIndex: number
   weight: number
+}
+
+interface AlarmData {
+  time: string
+  childName: string
+  medicine: MedicineType
+  enabled: boolean
 }
 
 // ─── Constants ───
@@ -61,7 +67,7 @@ const PRODUCTS: Record<MedicineType, { name: string; concentration: number }[]> 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const MINUTES = [0, 10, 20, 30, 40, 50]
 
-const PENDING_KEY = 'smartdose_pending_dosage'
+const ALARM_KEY = 'smartdose_alarm_v1'
 const MANUAL_TIME_KEY = 'smartdose_manual_time_v1'
 
 // ─── Helpers ───
@@ -97,9 +103,9 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-function getPendingDosage(): PendingDosage | null {
+function getAlarm(): AlarmData | null {
   try {
-    const raw = localStorage.getItem(PENDING_KEY)
+    const raw = localStorage.getItem(ALARM_KEY)
     if (raw) return JSON.parse(raw)
   } catch {
     // ignore
@@ -107,9 +113,9 @@ function getPendingDosage(): PendingDosage | null {
   return null
 }
 
-function savePendingDosage(dosage: PendingDosage) {
+function saveAlarm(alarm: AlarmData) {
   try {
-    localStorage.setItem(PENDING_KEY, JSON.stringify(dosage))
+    localStorage.setItem(ALARM_KEY, JSON.stringify(alarm))
   } catch {
     // ignore
   }
@@ -318,6 +324,7 @@ function TimeWheelPicker({
 
 export default function DosageAction() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { currentChild, addDosageRecord, setAlarmEnabled, setNextDoseTime } = useAppContext()
 
   const [note, setNote] = useState('')
@@ -344,14 +351,16 @@ export default function DosageAction() {
 
   // Derive dosage data
   const pending = useMemo(() => getPendingDosage(), [])
-  const medicine: MedicineType = pending?.medicine ?? 'acetaminophen'
-  const productIndex = pending?.productIndex ?? 0
+  const prefs = useMemo(() => loadPrefs(), [])
+  const medicine: MedicineType = pending?.medicine ?? prefs.defaultMedicine
+  const productIndex =
+    pending?.productIndex ?? getProductIndexForPreference(PRODUCTS[medicine], prefs.defaultConcentration)
   const weight = currentChild?.weight ?? pending?.weight ?? 15
-  const product = PRODUCTS[medicine][productIndex] ?? PRODUCTS.acetaminophen[0]
+  const product = PRODUCTS[medicine][productIndex] ?? PRODUCTS[medicine][0]
 
   // Persist current dosage to localStorage so refresh keeps it
   useEffect(() => {
-    savePendingDosage({ medicine, productIndex, weight })
+    savePendingDosageDraft({ medicine, productIndex, weight })
   }, [medicine, productIndex, weight])
 
   const dosage = useMemo(() => calcDosage(weight, medicine, product.concentration), [weight, medicine, product])
