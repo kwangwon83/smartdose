@@ -31,7 +31,90 @@ import { useAppContext } from '@/contexts/AppContext'
 import type { Child } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
 import { cn } from '@/lib/utils'
-import { loadPrefs, savePrefs, type Prefs } from '@/lib/preferences'
+
+const STORAGE_PREFS_KEY = 'smartdose_prefs_v1'
+
+const SUPPORT_CONTACT_METHODS = ['mailto', 'external', 'in_app'] as const
+
+type SupportContactMethod = (typeof SUPPORT_CONTACT_METHODS)[number]
+
+function getEnvValue(key: string): string | undefined {
+  const value = import.meta.env[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+const APP_VERSION = getEnvValue('VITE_APP_VERSION') ?? '1.0.0'
+const SUPPORT_EMAIL = getEnvValue('VITE_SUPPORT_EMAIL') ?? 'support@smartdose.app'
+const SUPPORT_CONTACT_URL = getEnvValue('VITE_SUPPORT_CONTACT_URL')
+const SUPPORT_FORM_PATH = getEnvValue('VITE_SUPPORT_FORM_PATH')
+
+function isSupportContactMethod(value: string | undefined): value is SupportContactMethod {
+  return SUPPORT_CONTACT_METHODS.some((method) => method === value)
+}
+
+function getSupportContactMethod(): SupportContactMethod {
+  const configuredMethod = getEnvValue('VITE_SUPPORT_CONTACT_METHOD')
+  if (isSupportContactMethod(configuredMethod)) return configuredMethod
+  return 'mailto'
+}
+
+function getDiagnosticInfo(provider: string): string {
+  const diagnostics = [
+    `앱 버전: ${APP_VERSION}`,
+    `브라우저: ${navigator.userAgent}`,
+    `로그인 provider: ${provider}`,
+  ]
+  return diagnostics.join('\n')
+}
+
+function buildSupportMailto(provider: string): string {
+  const subject = '[SmartDose] 문의하기'
+  const body = [
+    '문의 내용을 작성해주세요.',
+    '',
+    '--- 진단 정보(선택) ---',
+    getDiagnosticInfo(provider),
+  ].join('\n')
+
+  return `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+}
+
+async function copySupportUrlToClipboard(url: string): Promise<boolean> {
+  if (!navigator.clipboard?.writeText) return false
+
+  try {
+    await navigator.clipboard.writeText(url)
+    return true
+  } catch {
+    return false
+  }
+}
+
+interface Prefs {
+  defaultMedicine: 'acetaminophen' | 'ibuprofen'
+  defaultConcentration: string
+}
+
+function loadPrefs(): Prefs {
+  try {
+    const raw = localStorage.getItem(STORAGE_PREFS_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {
+    // ignore
+  }
+  return {
+    defaultMedicine: 'acetaminophen',
+    defaultConcentration: '100mg/5ml',
+  }
+}
+
+function savePrefs(prefs: Prefs) {
+  try {
+    localStorage.setItem(STORAGE_PREFS_KEY, JSON.stringify(prefs))
+  } catch {
+    // ignore
+  }
+}
 
 function getAgeText(birthDate: string): string {
   const birth = new Date(birthDate)
@@ -296,16 +379,21 @@ export default function Settings() {
 
     if (contactMethod === 'mailto') {
       try {
-        window.location.href = buildSupportMailto(provider)
-        showToast('메일 앱을 열었어요. 문의 내용을 작성해 보내주세요.', 'success')
+        window.location.assign(buildSupportMailto(provider))
+        showToast('메일 앱으로 연결을 시도했어요. 문의 내용을 작성해 보내주세요.', 'info')
       } catch {
-        showToast('메일 앱을 열 수 없어요. 이메일 주소를 확인해주세요.', 'error')
+        showToast('메일 앱으로 연결할 수 없어요. 이메일 주소를 직접 입력해주세요.', 'error')
       }
       return
     }
 
     if (contactMethod === 'external') {
-      const supportWindow = window.open(SUPPORT_CONTACT_URL, '_blank', 'noopener,noreferrer')
+      if (!SUPPORT_CONTACT_URL) {
+        showToast('고객센터 주소가 설정되어 있지 않아요.', 'error')
+        return
+      }
+
+      const supportWindow = window.open(SUPPORT_CONTACT_URL, '_blank')
       if (supportWindow) {
         supportWindow.opener = null
         showToast('고객센터를 새 창에서 열었어요.', 'success')
@@ -319,6 +407,11 @@ export default function Settings() {
           : '새 창을 열 수 없어요. 팝업 차단을 해제하거나 고객센터 주소를 직접 입력해주세요.',
         copied ? 'info' : 'error',
       )
+      return
+    }
+
+    if (!SUPPORT_FORM_PATH) {
+      showToast('문의 폼 경로가 설정되어 있지 않아요.', 'error')
       return
     }
 
