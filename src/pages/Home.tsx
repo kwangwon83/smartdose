@@ -25,6 +25,12 @@ interface Product {
   concentration: number // mg per 5ml
 }
 
+interface PendingDosageDraft {
+  medicine: MedicineType
+  productIndex: number
+  weight: number
+}
+
 const PRODUCTS: Record<MedicineType, Product[]> = {
   acetaminophen: [
     { name: '타세놀 시럽', concentration: 100 },
@@ -54,6 +60,8 @@ const MEDICINE_INFO: Record<MedicineType, { name: string; range: [number, number
   },
 }
 
+const PENDING_DOSAGE_KEY = 'smartdose_pending_dosage'
+
 // ─── Helpers ───
 function formatNumber(n: number, digits = 1) {
   return Number(n.toFixed(digits))
@@ -70,6 +78,14 @@ function calcDosage(weight: number, medicine: MedicineType, concentration: numbe
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function savePendingDosageDraft(draft: PendingDosageDraft) {
+  try {
+    localStorage.setItem(PENDING_DOSAGE_KEY, JSON.stringify(draft))
+  } catch {
+    // ignore
+  }
 }
 
 // ─── Components ───
@@ -174,9 +190,8 @@ export default function Home() {
       showToast('몸무게를 먼저 입력해주세요', 'info')
       return
     }
-    const draft: PendingDosageDraft = { medicine, productIndex, weight }
-    savePendingDosageDraft(draft)
-    navigate('/dosage', { state: draft })
+    savePendingDosageDraft({ medicine, productIndex, weight })
+    navigate('/dosage')
   }
 
   const recentRecords = dosageRecords.slice(0, 3)

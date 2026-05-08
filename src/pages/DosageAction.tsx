@@ -28,13 +28,13 @@ import { buildShareText, executeShareTarget, type ShareTarget, type ShareResult 
 
 // ─── Types ───
 
-interface PendingDosage {
+interface PendingDosageDraft {
   medicine: MedicineType
   productIndex: number
   weight: number
 }
 
-interface AlarmData {
+interface DoseAlarmData {
   time: string
   childName: string
   medicine: MedicineType
@@ -69,8 +69,38 @@ const MINUTES = [0, 10, 20, 30, 40, 50]
 
 const ALARM_KEY = 'smartdose_alarm_v1'
 const MANUAL_TIME_KEY = 'smartdose_manual_time_v1'
+const SETTINGS_PREFS_KEY = 'smartdose_prefs_v1'
+
+interface DosagePrefs {
+  defaultMedicine: MedicineType
+  defaultConcentration: string
+}
 
 // ─── Helpers ───
+
+function loadPrefs(): DosagePrefs {
+  try {
+    const raw = localStorage.getItem(SETTINGS_PREFS_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<DosagePrefs>
+      const defaultMedicine = parsed.defaultMedicine === 'ibuprofen' ? 'ibuprofen' : 'acetaminophen'
+      return {
+        defaultMedicine,
+        defaultConcentration: parsed.defaultConcentration || PRODUCTS[defaultMedicine][0].concentration + 'mg/5ml',
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return { defaultMedicine: 'acetaminophen', defaultConcentration: '100mg/5ml' }
+}
+
+function getProductIndexForPreference(medicine: MedicineType, concentration: string): number {
+  const concentrationValue = Number.parseInt(concentration, 10)
+  const index = PRODUCTS[medicine].findIndex((product) => product.concentration === concentrationValue)
+  return index >= 0 ? index : 0
+}
+
 function formatNumber(n: number, digits = 1) {
   return Number(n.toFixed(digits))
 }
@@ -103,7 +133,25 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-function getAlarm(): AlarmData | null {
+function getPendingDosage(): PendingDosageDraft | null {
+  try {
+    const raw = localStorage.getItem(PENDING_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {
+    // ignore
+  }
+  return null
+}
+
+function savePendingDosageDraft(dosage: PendingDosageDraft) {
+  try {
+    localStorage.setItem(PENDING_KEY, JSON.stringify(dosage))
+  } catch {
+    // ignore
+  }
+}
+
+function getAlarm(): DoseAlarmData | null {
   try {
     const raw = localStorage.getItem(ALARM_KEY)
     if (raw) return JSON.parse(raw)
@@ -113,9 +161,17 @@ function getAlarm(): AlarmData | null {
   return null
 }
 
-function saveAlarm(alarm: AlarmData) {
+function scheduleDoseNotification(alarm: DoseAlarmData) {
   try {
     localStorage.setItem(ALARM_KEY, JSON.stringify(alarm))
+  } catch {
+    // ignore
+  }
+}
+
+function cancelDoseNotification() {
+  try {
+    localStorage.removeItem(ALARM_KEY)
   } catch {
     // ignore
   }
@@ -361,8 +417,7 @@ export default function DosageAction() {
   const pending = useMemo(() => getPendingDosage(), [])
   const prefs = useMemo(() => loadPrefs(), [])
   const medicine: MedicineType = pending?.medicine ?? prefs.defaultMedicine
-  const productIndex =
-    pending?.productIndex ?? getProductIndexForPreference(PRODUCTS[medicine], prefs.defaultConcentration)
+  const productIndex = pending?.productIndex ?? getProductIndexForPreference(medicine, prefs.defaultConcentration)
   const weight = currentChild?.weight ?? pending?.weight ?? 15
   const product = PRODUCTS[medicine][productIndex] ?? PRODUCTS[medicine][0]
 
@@ -444,9 +499,16 @@ export default function DosageAction() {
           setAlarmOn(false)
           showToast('알림 권한 요청에 실패했어요', 'error')
         }
+        scheduleDoseNotification({
+          time: targetDate.toISOString(),
+          childName,
+          medicine,
+          enabled: true,
+        })
+        setAlarmEnabled(true)
+        setNextDoseTime(targetDate.toISOString())
       } else {
         cancelDoseNotification()
-        setAlarmOn(false)
         setAlarmEnabled(false)
         setNextDoseTime(null)
       }
@@ -470,6 +532,7 @@ export default function DosageAction() {
       amountMg: doseMg,
       timestamp: now.toISOString(),
       memo: note.trim() || undefined,
+      nextDoseTime: nextDoseDate.toISOString(),
     }
     addDosageRecord(record)
     setNextDoseTime(nextDoseDate.toISOString())
