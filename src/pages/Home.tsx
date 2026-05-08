@@ -16,28 +16,10 @@ import {
 import Layout from '@/components/Layout'
 import { useAppContext } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
+import * as dosageLib from '@/lib/dosage'
 
-// ─── Types ───
-type MedicineType = 'acetaminophen' | 'ibuprofen'
 
-interface Product {
-  name: string
-  concentration: number // mg per 5ml
-}
-
-const PRODUCTS: Record<MedicineType, Product[]> = {
-  acetaminophen: [
-    { name: '타세놀 시럽', concentration: 100 },
-    { name: '페디아 시럽', concentration: 120 },
-    { name: '타이레놀 시럽', concentration: 160 },
-  ],
-  ibuprofen: [
-    { name: '브루펜 시럽', concentration: 100 },
-    { name: '아이프로엔 시럽', concentration: 100 },
-  ],
-}
-
-const MEDICINE_INFO: Record<MedicineType, { name: string; range: [number, number]; maxDoses: number; interval: string; desc: string }> = {
+const MEDICINE_INFO: Record<dosageLib.MedicineType, { name: string; range: [number, number]; maxDoses: number; interval: string; desc: string }> = {
   acetaminophen: {
     name: '아세트아미노펜',
     range: [10, 15],
@@ -59,7 +41,7 @@ function formatNumber(n: number, digits = 1) {
   return Number(n.toFixed(digits))
 }
 
-function calcDosage(weight: number, medicine: MedicineType, concentration: number) {
+function calcDosage(weight: number, medicine: dosageLib.MedicineType, concentration: number) {
   const info = MEDICINE_INFO[medicine]
   const minMg = weight * info.range[0]
   const maxMg = weight * info.range[1]
@@ -124,24 +106,14 @@ export default function Home() {
   const { currentChild, children, dosageRecords, setCurrentChild, addChild } = useAppContext()
 
   const [weight, setWeight] = useState(currentChild?.weight ?? 15)
-  const [medicine, setMedicine] = useState<MedicineType>('acetaminophen')
+  const [medicine, setMedicine] = useState<dosageLib.MedicineType>('acetaminophen')
   const [productIndex, setProductIndex] = useState(0)
   const [accordionOpen, setAccordionOpen] = useState<string | null>(null)
   const [childSelectorOpen, setChildSelectorOpen] = useState(false)
 
   const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Auto-adjust product index when medicine changes
-  useEffect(() => {
-    setProductIndex(0)
-  }, [medicine])
-
-  // Sync weight when current child changes
-  useEffect(() => {
-    if (currentChild) setWeight(currentChild.weight)
-  }, [currentChild])
-
-  const product = PRODUCTS[medicine][productIndex]
+  const product = dosageLib.PRODUCTS[medicine][productIndex]
   const dosage = useMemo(() => calcDosage(weight, medicine, product.concentration), [weight, medicine, product])
 
   const isWeightValid = weight >= 3 && weight <= 60
@@ -176,6 +148,7 @@ export default function Home() {
       showToast('몸무게를 먼저 입력해주세요', 'info')
       return
     }
+    dosageLib.savePendingDosageDraft({ medicine, productIndex, weight })
     navigate('/dosage')
   }
 
@@ -194,6 +167,11 @@ export default function Home() {
     }
     return () => document.removeEventListener('mousedown', handler)
   }, [childSelectorOpen])
+
+  const handleSelectMedicine = useCallback((nextMedicine: dosageLib.MedicineType) => {
+    setMedicine(nextMedicine)
+    setProductIndex(0)
+  }, [])
 
   const onSelectChild = (child: typeof currentChild) => {
     setCurrentChild(child)
@@ -215,7 +193,7 @@ export default function Home() {
       name,
       birthDate: '',
       weight: w,
-      avatar: children.length % 2 === 0 ? './child-avatar-1.svg' : './child-avatar-2.svg',
+      avatar: children.length % 2 === 0 ? '/child-avatar-1.svg' : '/child-avatar-2.svg',
     }
     addChild(newChild)
     setCurrentChild(newChild)
@@ -237,7 +215,7 @@ export default function Home() {
         className="relative w-full h-[180px] overflow-hidden"
       >
         <img
-          src="./hero-illustration.svg"
+          src="/hero-illustration.svg"
           alt="hero"
           className="w-full h-full object-cover"
         />
@@ -369,12 +347,12 @@ export default function Home() {
           className="flex flex-col gap-2"
         >
           <div className="flex gap-2">
-            {(['acetaminophen', 'ibuprofen'] as MedicineType[]).map((m) => {
+            {(['acetaminophen', 'ibuprofen'] as dosageLib.MedicineType[]).map((m) => {
               const active = medicine === m
               return (
                 <button
                   key={m}
-                  onClick={() => setMedicine(m)}
+                  onClick={() => handleSelectMedicine(m)}
                   className={`flex-1 h-12 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors active:scale-[0.97] ${
                     active
                       ? 'bg-smart-primary text-white'
@@ -521,7 +499,7 @@ export default function Home() {
                   className="overflow-hidden"
                 >
                   <div className="px-5 pb-4 flex flex-col">
-                    {PRODUCTS[medicine].map((p, idx) => (
+                    {dosageLib.PRODUCTS[medicine].map((p, idx) => (
                       <button
                         key={p.name}
                         onClick={() => setProductIndex(idx)}

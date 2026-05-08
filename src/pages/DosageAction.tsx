@@ -24,59 +24,23 @@ import Layout from '@/components/Layout'
 import BottomSheet from '@/components/BottomSheet'
 import { useAppContext } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
-
-// ─── Types ───
-type MedicineType = 'acetaminophen' | 'ibuprofen'
-
-interface PendingDosage {
-  medicine: MedicineType
-  productIndex: number
-  weight: number
-}
-
-interface AlarmData {
-  time: string
-  childName: string
-  medicine: MedicineType
-  enabled: boolean
-}
+import * as dosageLib from '@/lib/dosage'
+import { buildShareText, executeShareTarget, type ShareTarget } from '@/lib/share'
 
 // ─── Constants ───
-const MEDICINE_NAMES: Record<MedicineType, string> = {
-  acetaminophen: '아세트아미노펜',
-  ibuprofen: '이부프로펜',
-}
-
-const MEDICINE_INTERVAL_HOURS: Record<MedicineType, number> = {
-  acetaminophen: 4,
-  ibuprofen: 7,
-}
-
-const PRODUCTS: Record<MedicineType, { name: string; concentration: number }[]> = {
-  acetaminophen: [
-    { name: '타세놀 시럽', concentration: 100 },
-    { name: '페디아 시럽', concentration: 120 },
-    { name: '타이레놀 시럽', concentration: 160 },
-  ],
-  ibuprofen: [
-    { name: '브루펜 시럽', concentration: 100 },
-    { name: '아이프로엔 시럽', concentration: 100 },
-  ],
-}
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const MINUTES = [0, 10, 20, 30, 40, 50]
 
-const PENDING_KEY = 'smartdose_pending_dosage'
 const ALARM_KEY = 'smartdose_alarm_v1'
 const MANUAL_TIME_KEY = 'smartdose_manual_time_v1'
-
 // ─── Helpers ───
+
 function formatNumber(n: number, digits = 1) {
   return Number(n.toFixed(digits))
 }
 
-function calcDosage(weight: number, medicine: MedicineType, concentration: number) {
+function calcDosage(weight: number, medicine: dosageLib.MedicineType, concentration: number) {
   const range = medicine === 'acetaminophen' ? [10, 15] : [5, 10]
   const minMg = weight * range[0]
   const maxMg = weight * range[1]
@@ -104,25 +68,7 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-function getPendingDosage(): PendingDosage | null {
-  try {
-    const raw = localStorage.getItem(PENDING_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {
-    // ignore
-  }
-  return null
-}
-
-function savePendingDosage(dosage: PendingDosage) {
-  try {
-    localStorage.setItem(PENDING_KEY, JSON.stringify(dosage))
-  } catch {
-    // ignore
-  }
-}
-
-function getAlarm(): AlarmData | null {
+function getAlarm(): dosageLib.DoseAlarmData | null {
   try {
     const raw = localStorage.getItem(ALARM_KEY)
     if (raw) return JSON.parse(raw)
@@ -132,9 +78,17 @@ function getAlarm(): AlarmData | null {
   return null
 }
 
-function saveAlarm(alarm: AlarmData) {
+function scheduleDoseNotification(alarm: dosageLib.DoseAlarmData) {
   try {
     localStorage.setItem(ALARM_KEY, JSON.stringify(alarm))
+  } catch {
+    // ignore
+  }
+}
+
+function cancelDoseNotification() {
+  try {
+    localStorage.removeItem(ALARM_KEY)
   } catch {
     // ignore
   }
@@ -151,7 +105,15 @@ function getManualTime(): string | null {
   return null
 }
 
-/** 수동 설정된 시간을 localStorage에 저장 */
+/** 수동 설정된 시간을 Date 객체로 변환 */
+function getManualNextDoseDate(): Date | null {
+  const saved = getManualTime()
+  if (!saved) return null
+
+  const parsed = new Date(saved)
+  return isNaN(parsed.getTime()) ? null : parsed
+}
+
 function saveManualTime(time: string | null) {
   try {
     if (time) {
@@ -162,22 +124,6 @@ function saveManualTime(time: string | null) {
   } catch {
     // ignore
   }
-}
-
-function buildShareText(
-  childName: string,
-  time: string,
-  medicine: string,
-  doseMl: number,
-  doseMg: number,
-  nextDoseTime: string
-) {
-  return `[투약 기록]
-아이: ${childName}
-시간: ${time}
-약품: ${medicine}
-용량: ${doseMl}ml (${doseMg}mg)
-다음 투약 가능: ${nextDoseTime}`
 }
 
 // ─── Sub-components ───
@@ -361,63 +307,46 @@ export default function DosageAction() {
   const { currentChild, addDosageRecord, setAlarmEnabled, setNextDoseTime } = useAppContext()
 
   const [note, setNote] = useState('')
-  const [alarmOn, setAlarmOn] = useState(false)
+  const [alarmOn, setAlarmOn] = useState(() => getAlarm()?.enabled ?? false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [shareSheetOpen, setShareSheetOpen] = useState(false)
-  const [shareTarget, setShareTarget] = useState<'kakao' | 'sms' | 'share' | null>(null)
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
 
   // ─── 다음 투약 시간 관련 상태 ───
   // 시간 편집 BottomSheet 열림 여부
   const [timePickerOpen, setTimePickerOpen] = useState(false)
+  // 수동으로 설정된 다음 투약 시간 (null이면 자동 계산 사용)
+  const [manualNextDoseDate, setManualNextDoseDate] = useState<Date | null>(() => getManualNextDoseDate())
   // 수동 편집 여부 플래그
-  const [isManualEdit, setIsManualEdit] = useState(false)
+  const [isManualEdit, setIsManualEdit] = useState(() => manualNextDoseDate !== null)
   // 편집 중인 시/분 (picker 상태)
   const [pickerHour, setPickerHour] = useState(0)
   const [pickerMinute, setPickerMinute] = useState(0)
-  // 수동으로 설정된 다음 투약 시간 (null이면 자동 계산 사용)
-  const [manualNextDoseDate, setManualNextDoseDate] = useState<Date | null>(null)
 
   // Stable current time (set once on mount)
   const now = useMemo(() => new Date(), [])
 
   // Derive dosage data
-  const pending = useMemo(() => getPendingDosage(), [])
-  const medicine: MedicineType = pending?.medicine ?? 'acetaminophen'
-  const productIndex = pending?.productIndex ?? 0
+  const pending = useMemo(() => dosageLib.getPendingDosage(), [])
+  const prefs = useMemo(() => dosageLib.loadDosagePrefs(), [])
+  const medicine: dosageLib.MedicineType = pending?.medicine ?? prefs.defaultMedicine
+  const productIndex = pending?.productIndex ?? dosageLib.getProductIndexForPreference(medicine, prefs.defaultConcentration)
   const weight = currentChild?.weight ?? pending?.weight ?? 15
-  const product = PRODUCTS[medicine][productIndex] ?? PRODUCTS.acetaminophen[0]
+  const product = dosageLib.PRODUCTS[medicine][productIndex] ?? dosageLib.PRODUCTS.acetaminophen[0]
 
   // Persist current dosage to localStorage so refresh keeps it
   useEffect(() => {
-    savePendingDosage({ medicine, productIndex, weight })
+    dosageLib.savePendingDosageDraft({ medicine, productIndex, weight })
   }, [medicine, productIndex, weight])
-
-  // Initialize alarm state from localStorage
-  useEffect(() => {
-    const alarm = getAlarm()
-    if (alarm) setAlarmOn(alarm.enabled)
-  }, [])
-
-  // 마운트 시 localStorage에서 수동 설정된 시간 불러오기
-  useEffect(() => {
-    const saved = getManualTime()
-    if (saved) {
-      const parsed = new Date(saved)
-      if (!isNaN(parsed.getTime())) {
-        setManualNextDoseDate(parsed)
-        setIsManualEdit(true)
-      }
-    }
-  }, [])
 
   const dosage = useMemo(() => calcDosage(weight, medicine, product.concentration), [weight, medicine, product])
   const doseMl = formatNumber((dosage.minMl + dosage.maxMl) / 2)
   const doseMg = Math.round((dosage.minMg + dosage.maxMg) / 2)
 
   // 자동 계산된 다음 투약 시간
-  const autoNextDoseDate = useMemo(() => addHours(now, MEDICINE_INTERVAL_HOURS[medicine]), [now, medicine])
+  const autoNextDoseDate = useMemo(() => addHours(now, dosageLib.MEDICINE_INTERVAL_HOURS[medicine]), [now, medicine])
 
   // 실제 사용할 다음 투약 시간 (수동 설정 우선)
   const nextDoseDate = manualNextDoseDate ?? autoNextDoseDate
@@ -461,7 +390,7 @@ export default function DosageAction() {
         } else {
           showToast('이 브라우저는 알림을 지원하지 않아요', 'info')
         }
-        saveAlarm({
+        scheduleDoseNotification({
           time: targetDate.toISOString(),
           childName,
           medicine,
@@ -470,12 +399,7 @@ export default function DosageAction() {
         setAlarmEnabled(true)
         setNextDoseTime(targetDate.toISOString())
       } else {
-        saveAlarm({
-          time: targetDate.toISOString(),
-          childName,
-          medicine,
-          enabled: false,
-        })
+        cancelDoseNotification()
         setAlarmEnabled(false)
         setNextDoseTime(null)
       }
@@ -499,6 +423,7 @@ export default function DosageAction() {
       amountMg: doseMg,
       timestamp: now.toISOString(),
       memo: note.trim() || undefined,
+      nextDoseTime: nextDoseDate.toISOString(),
     }
     addDosageRecord(record)
     setNextDoseTime(nextDoseDate.toISOString())
@@ -510,38 +435,17 @@ export default function DosageAction() {
     }, 800)
   }, [currentChild, medicine, product, doseMl, doseMg, now, note, addDosageRecord, setNextDoseTime, nextDoseDate, navigate])
 
-  const openShare = useCallback((target: 'kakao' | 'sms' | 'share') => {
+  const openShare = useCallback((target: ShareTarget) => {
     setShareTarget(target)
     setShareSheetOpen(true)
   }, [])
 
-  const executeShare = useCallback(() => {
-    const text = buildShareText(childName, currentTimeStr, MEDICINE_NAMES[medicine], doseMl, doseMg, nextDoseTimeStr)
-    if (shareTarget === 'share') {
-      if (typeof navigator.share === 'function') {
-        navigator
-          .share({ title: '투약 기록', text })
-          .then(() => {
-            showToast('공유가 완료되었어요', 'success')
-          })
-          .catch(() => {
-            showToast('공유가 취소되었어요', 'info')
-          })
-      } else {
-        navigator.clipboard
-          ?.writeText(text)
-          .then(() => showToast('클립보드에 복사되었어요', 'success'))
-          .catch(() => showToast('공유할 수 없어요', 'error'))
-      }
-    } else if (shareTarget === 'sms') {
-      window.location.href = `sms:?body=${encodeURIComponent(text)}`
-      showToast('문자 앱을 열었어요', 'success')
-    } else if (shareTarget === 'kakao') {
-      navigator.clipboard
-        ?.writeText(text)
-        .then(() => showToast('클립보드에 복사되었어요. 카카오톡에 붙여넣기 해주세요', 'success'))
-        .catch(() => showToast('공유할 수 없어요. 앱이 설치되어 있는지 확인해주세요.', 'error'))
-    }
+  const executeShare = useCallback(async () => {
+    if (!shareTarget) return
+
+    const text = buildShareText(childName, currentTimeStr, dosageLib.MEDICINE_NAMES[medicine], doseMl, doseMg, nextDoseTimeStr)
+    const result = await executeShareTarget(shareTarget, text)
+    showToast(result.message, result.type)
     setShareSheetOpen(false)
   }, [childName, currentTimeStr, medicine, doseMl, doseMg, nextDoseTimeStr, shareTarget])
 
@@ -656,7 +560,7 @@ export default function DosageAction() {
             </motion.div>
             <motion.div className="flex items-center gap-3" variants={cardItemVariants}>
               <Pill className="w-4 h-4 text-smart-text-muted shrink-0" />
-              <span className="text-base font-medium text-smart-text">{MEDICINE_NAMES[medicine]}</span>
+              <span className="text-base font-medium text-smart-text">{dosageLib.MEDICINE_NAMES[medicine]}</span>
             </motion.div>
             <motion.div className="flex items-center gap-3" variants={cardItemVariants}>
               <Droplets className="w-4 h-4 text-smart-primary shrink-0" />
@@ -855,7 +759,7 @@ export default function DosageAction() {
                 {childName} / {weight}kg
               </p>
               <p className="text-lg font-semibold text-white">
-                {MEDICINE_NAMES[medicine]} {doseMl}ml
+                {dosageLib.MEDICINE_NAMES[medicine]} {doseMl}ml
               </p>
               <p className="text-sm text-white/80">{currentTimeStr} 투약</p>
             </div>
@@ -866,7 +770,7 @@ export default function DosageAction() {
 
           <div className="bg-[#F8FAFC] rounded-xl p-4">
             <p className="text-sm text-smart-text-secondary whitespace-pre-wrap font-sans">
-              {buildShareText(childName, currentTimeStr, MEDICINE_NAMES[medicine], doseMl, doseMg, nextDoseTimeStr)}
+              {buildShareText(childName, currentTimeStr, dosageLib.MEDICINE_NAMES[medicine], doseMl, doseMg, nextDoseTimeStr)}
             </p>
           </div>
 
