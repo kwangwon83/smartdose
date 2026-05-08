@@ -11,6 +11,8 @@ import {
   Trash2,
   Pencil,
   Share2,
+  MessageSquare,
+  ExternalLink,
   AlertTriangle,
   RotateCcw,
 } from 'lucide-react'
@@ -18,6 +20,7 @@ import Layout from '@/components/Layout'
 import BottomSheet from '@/components/BottomSheet'
 import { useAppContext, type DosageRecord } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
+import { buildShareText, executeShareTarget, type ShareTarget, type ShareResult } from '@/lib/share'
 import {
   isToday,
   isYesterday,
@@ -355,7 +358,7 @@ export default function History() {
     children,
     dosageRecords,
     deleteDosageRecord,
-    addDosageRecord,
+    updateDosageRecord,
   } = useAppContext()
 
   const [selectedChildId, setSelectedChildId] = useState<string>('all')
@@ -364,6 +367,7 @@ export default function History() {
   const [editingNote, setEditingNote] = useState(false)
   const [noteDraft, setNoteDraft] = useState('')
   const [headerShadow, setHeaderShadow] = useState(false)
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null)
 
   // Time picker state
   const [timePickerOpen, setTimePickerOpen] = useState(false)
@@ -426,12 +430,11 @@ export default function History() {
       ...detailRecord,
       memo: noteDraft.trim() || undefined,
     }
-    deleteDosageRecord(detailRecord.id)
-    addDosageRecord(updated)
+    updateDosageRecord(updated)
     setDetailRecord(updated)
     setEditingNote(false)
     showToast('메모가 수정되었어요', 'success')
-  }, [detailRecord, noteDraft, deleteDosageRecord, addDosageRecord])
+  }, [detailRecord, noteDraft, updateDosageRecord])
 
   // ─── Time edit handlers ───
   const handleOpenTimePicker = useCallback(() => {
@@ -470,12 +473,11 @@ export default function History() {
       ...detailRecord,
       nextDoseTime: newDate.toISOString(),
     }
-    deleteDosageRecord(detailRecord.id)
-    addDosageRecord(updated)
+    updateDosageRecord(updated)
     setDetailRecord(updated)
     setTimePickerOpen(false)
     showToast('다음 투약 시간이 수정되었습니다', 'success')
-  }, [detailRecord, pickerHour, pickerMinute, deleteDosageRecord, addDosageRecord])
+  }, [detailRecord, pickerHour, pickerMinute, updateDosageRecord])
 
   const handleCancelTimeEdit = useCallback(() => {
     setTimePickerOpen(false)
@@ -484,21 +486,65 @@ export default function History() {
   const handleResetToAuto = useCallback(() => {
     if (!detailRecord) return
     const updated: DosageRecord = {
-      id: detailRecord.id,
-      childId: detailRecord.childId,
-      medicine: detailRecord.medicine,
-      concentration: detailRecord.concentration,
-      amountMl: detailRecord.amountMl,
-      amountMg: detailRecord.amountMg,
-      timestamp: detailRecord.timestamp,
-      memo: detailRecord.memo,
+      ...detailRecord,
+      nextDoseTime: undefined,
     }
-    deleteDosageRecord(detailRecord.id)
-    addDosageRecord(updated)
+    updateDosageRecord(updated)
     setDetailRecord(updated)
     setTimePickerOpen(false)
     showToast('자동 계산 시간으로 되돌렸어요', 'info')
-  }, [detailRecord, deleteDosageRecord, addDosageRecord])
+  }, [detailRecord, updateDosageRecord])
+
+
+  const handleShareResult = useCallback((result: ShareResult, target: ShareTarget) => {
+    if (result === 'shared') {
+      showToast('공유가 완료되었어요', 'success')
+    } else if (result === 'copied') {
+      showToast(
+        target === 'kakao'
+          ? '클립보드에 복사되었어요. 카카오톡에 붙여넣기 해주세요'
+          : '클립보드에 복사되었어요',
+        'success'
+      )
+    } else if (result === 'sms') {
+      showToast('문자 앱을 열었어요', 'success')
+    } else if (result === 'cancelled') {
+      showToast('공유가 취소되었어요', 'info')
+    } else {
+      showToast(
+        target === 'kakao'
+          ? '공유할 수 없어요. 앱이 설치되어 있는지 확인해주세요.'
+          : '공유할 수 없어요',
+        'error'
+      )
+    }
+  }, [])
+
+  const executeDetailShare = useCallback(async (target: ShareTarget) => {
+    if (!detailRecord) return
+
+    const child = getChild(detailRecord.childId)
+    const text = buildShareText(
+      child?.name ?? '아이',
+      new Date(detailRecord.timestamp).toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }),
+      MEDICINE_INFO[detailRecord.medicine].name,
+      detailRecord.amountMl,
+      detailRecord.amountMg,
+      getNextDoseTime(detailRecord)
+    )
+
+    setShareTarget(target)
+    const result = await executeShareTarget(target, text)
+    handleShareResult(result, target)
+    setShareTarget(null)
+  }, [detailRecord, getChild, handleShareResult])
 
   const chips = [
     { id: 'all', name: '전체', avatar: '' },
@@ -852,15 +898,32 @@ export default function History() {
 
             {/* Actions */}
             <div className="flex flex-col gap-2 pt-2">
-              <button
-                onClick={() => {
-                  showToast('공유 기능은 준비 중이에요', 'info')
-                }}
-                className="w-full h-12 rounded-xl bg-[#F1F5F9] text-smart-text text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.97] transition-transform"
-              >
-                <Share2 className="w-4 h-4" />
-                공유하기
-              </button>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  onClick={() => executeDetailShare('kakao')}
+                  disabled={shareTarget !== null}
+                  className="h-12 rounded-xl bg-[#FEE500] text-smart-text text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-[0.97] transition-transform disabled:opacity-60"
+                >
+                  <Share2 className="w-4 h-4" />
+                  카카오톡
+                </button>
+                <button
+                  onClick={() => executeDetailShare('sms')}
+                  disabled={shareTarget !== null}
+                  className="h-12 rounded-xl bg-[#F1F5F9] text-smart-text text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-[0.97] transition-transform disabled:opacity-60"
+                >
+                  <MessageSquare className="w-4 h-4 text-smart-primary" />
+                  문자
+                </button>
+                <button
+                  onClick={() => executeDetailShare('share')}
+                  disabled={shareTarget !== null}
+                  className="h-12 rounded-xl bg-[#F1F5F9] text-smart-text text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-[0.97] transition-transform disabled:opacity-60"
+                >
+                  <ExternalLink className="w-4 h-4 text-smart-text-secondary" />
+                  더보기
+                </button>
+              </div>
               <button
                 onClick={() => {
                   setDetailRecord(null)
