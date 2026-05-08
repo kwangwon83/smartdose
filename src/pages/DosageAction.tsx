@@ -40,15 +40,6 @@ function formatNumber(n: number, digits = 1) {
   return Number(n.toFixed(digits))
 }
 
-function calcDosage(weight: number, medicine: dosageLib.MedicineType, concentration: number) {
-  const range = medicine === 'acetaminophen' ? [10, 15] : [5, 10]
-  const minMg = weight * range[0]
-  const maxMg = weight * range[1]
-  const minMl = (minMg / concentration) * 5
-  const maxMl = (maxMg / concentration) * 5
-  return { minMg, maxMg, minMl, maxMl }
-}
-
 function formatTime(date: Date) {
   return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
@@ -341,8 +332,9 @@ export default function DosageAction() {
     dosageLib.savePendingDosageDraft({ medicine, productIndex, weight })
   }, [medicine, productIndex, weight])
 
-  const dosage = useMemo(() => calcDosage(weight, medicine, product.concentration), [weight, medicine, product])
-  const doseMl = formatNumber((dosage.minMl + dosage.maxMl) / 2)
+  const dosage = useMemo(() => dosageLib.calcDosage(weight, medicine, product), [weight, medicine, product])
+  const doseUnitLabel = dosageLib.getDoseUnitLabel(dosage.doseUnit)
+  const doseAmount = formatNumber(dosageLib.getDosageDisplayAmount(dosage))
   const doseMg = Math.round((dosage.minMg + dosage.maxMg) / 2)
 
   // 자동 계산된 다음 투약 시간
@@ -428,8 +420,8 @@ export default function DosageAction() {
       id: generateId(),
       childId: currentChild.id,
       medicine,
-      concentration: `${product.concentration}mg/5ml`,
-      amountMl: doseMl,
+      concentration: product.concentrationLabel,
+      amountMl: doseAmount,
       amountMg: doseMg,
       timestamp: now.toISOString(),
       memo: note.trim() || undefined,
@@ -443,7 +435,7 @@ export default function DosageAction() {
     setTimeout(() => {
       navigate('/history')
     }, 800)
-  }, [currentChild, medicine, product, doseMl, doseMg, now, note, addDosageRecord, setNextDoseTime, nextDoseDate, navigate])
+  }, [currentChild, medicine, product, doseAmount, doseMg, now, note, addDosageRecord, setNextDoseTime, nextDoseDate, navigate])
 
   const openShare = useCallback((target: ShareTarget) => {
     setShareTarget(target)
@@ -453,11 +445,11 @@ export default function DosageAction() {
   const executeShare = useCallback(async () => {
     if (!shareTarget) return
 
-    const text = buildShareText(childName, currentTimeStr, dosageLib.MEDICINE_NAMES[medicine], doseMl, doseMg, nextDoseTimeStr)
+    const text = buildShareText(childName, currentTimeStr, dosageLib.MEDICINE_NAMES[medicine], doseAmount, doseUnitLabel, doseMg, nextDoseTimeStr)
     const result = await executeShareTarget(shareTarget, text)
     showToast(result.message, result.type)
     setShareSheetOpen(false)
-  }, [childName, currentTimeStr, medicine, doseMl, doseMg, nextDoseTimeStr, shareTarget])
+  }, [childName, currentTimeStr, medicine, doseAmount, doseUnitLabel, doseMg, nextDoseTimeStr, shareTarget])
 
   // ─── 시간 편집 핸들러 ───
 
@@ -593,7 +585,7 @@ export default function DosageAction() {
             <motion.div className="flex items-center gap-3" variants={cardItemVariants}>
               <Droplets className="w-4 h-4 text-smart-primary shrink-0" />
               <span className="text-base font-semibold text-smart-primary">
-                {doseMl}ml ({doseMg}mg)
+                {doseAmount}{doseUnitLabel} ({doseMg}mg)
               </span>
             </motion.div>
             {/* 다음 투약 시간 + 편집 버튼 */}
@@ -787,7 +779,7 @@ export default function DosageAction() {
                 {childName} / {weight}kg
               </p>
               <p className="text-lg font-semibold text-white">
-                {dosageLib.MEDICINE_NAMES[medicine]} {doseMl}ml
+                {dosageLib.MEDICINE_NAMES[medicine]} {doseAmount}{doseUnitLabel}
               </p>
               <p className="text-sm text-white/80">{currentTimeStr} 투약</p>
             </div>
@@ -798,7 +790,7 @@ export default function DosageAction() {
 
           <div className="bg-[#F8FAFC] rounded-xl p-4">
             <p className="text-sm text-smart-text-secondary whitespace-pre-wrap font-sans">
-              {buildShareText(childName, currentTimeStr, dosageLib.MEDICINE_NAMES[medicine], doseMl, doseMg, nextDoseTimeStr)}
+              {buildShareText(childName, currentTimeStr, dosageLib.MEDICINE_NAMES[medicine], doseAmount, doseUnitLabel, doseMg, nextDoseTimeStr)}
             </p>
           </div>
 

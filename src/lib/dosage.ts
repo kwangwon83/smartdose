@@ -1,6 +1,6 @@
 export type MedicineType = 'acetaminophen' | 'ibuprofen' | 'dexibuprofen'
 
-export interface Product {
+export type Product = {
   name: string
   concentration: number
   ingredient: string
@@ -10,7 +10,10 @@ export interface Product {
   intervalGuide: string
   dailyMaxGuide: string
   imageSrc: string
-}
+} & (
+  | { doseUnit: 'ml'; mgPerMl: number }
+  | { doseUnit: 'packet'; mgPerPacket: number }
+)
 
 export interface PendingDosageDraft {
   medicine: MedicineType
@@ -37,6 +40,8 @@ export const PRODUCTS: Record<MedicineType, Product[]> = {
       concentration: 160,
       ingredient: '아세트아미노펜',
       concentrationLabel: '32mg/mL',
+      doseUnit: 'ml',
+      mgPerMl: 32,
       age: '영유아 및 어린이',
       doseGuide: '체중 기준 10~15mg/kg',
       intervalGuide: '4시간 이상 간격',
@@ -48,6 +53,8 @@ export const PRODUCTS: Record<MedicineType, Product[]> = {
       concentration: 160,
       ingredient: '아세트아미노펜',
       concentrationLabel: '32mg/mL',
+      doseUnit: 'ml',
+      mgPerMl: 32,
       age: '영유아 및 어린이',
       doseGuide: '체중 기준 10~15mg/kg',
       intervalGuide: '4시간 이상 간격',
@@ -59,6 +66,8 @@ export const PRODUCTS: Record<MedicineType, Product[]> = {
       concentration: 160,
       ingredient: '아세트아미노펜',
       concentrationLabel: '32mg/mL',
+      doseUnit: 'ml',
+      mgPerMl: 32,
       age: '영유아 및 어린이',
       doseGuide: '체중 기준 10~15mg/kg',
       intervalGuide: '4시간 이상 간격',
@@ -70,6 +79,8 @@ export const PRODUCTS: Record<MedicineType, Product[]> = {
       concentration: 160,
       ingredient: '아세트아미노펜',
       concentrationLabel: '32mg/mL',
+      doseUnit: 'ml',
+      mgPerMl: 32,
       age: '영유아 및 어린이',
       doseGuide: '체중 기준 10~15mg/kg',
       intervalGuide: '4시간 이상 간격',
@@ -81,7 +92,9 @@ export const PRODUCTS: Record<MedicineType, Product[]> = {
       concentration: 160,
       ingredient: '아세트아미노펜',
       concentrationLabel: '160mg/포',
-      age: '어린이',
+      doseUnit: 'packet',
+      mgPerPacket: 160,
+      age: '만 7~12세',
       doseGuide: '체중 기준 10~15mg/kg',
       intervalGuide: '4시간 이상 간격',
       dailyMaxGuide: '1일 최대 4회',
@@ -94,6 +107,8 @@ export const PRODUCTS: Record<MedicineType, Product[]> = {
       concentration: 100,
       ingredient: '이부프로펜',
       concentrationLabel: '20mg/mL',
+      doseUnit: 'ml',
+      mgPerMl: 20,
       age: '어린이',
       doseGuide: '체중 기준 5~10mg/kg',
       intervalGuide: '6~8시간 간격',
@@ -107,6 +122,8 @@ export const PRODUCTS: Record<MedicineType, Product[]> = {
       concentration: 60,
       ingredient: '덱시부프로펜',
       concentrationLabel: '12mg/mL',
+      doseUnit: 'ml',
+      mgPerMl: 12,
       age: '어린이',
       doseGuide: '체중 기준 5~7mg/kg',
       intervalGuide: '4~6시간 간격',
@@ -118,6 +135,8 @@ export const PRODUCTS: Record<MedicineType, Product[]> = {
       concentration: 60,
       ingredient: '덱시부프로펜',
       concentrationLabel: '12mg/mL',
+      doseUnit: 'ml',
+      mgPerMl: 12,
       age: '어린이',
       doseGuide: '체중 기준 5~7mg/kg',
       intervalGuide: '4~6시간 간격',
@@ -129,6 +148,8 @@ export const PRODUCTS: Record<MedicineType, Product[]> = {
       concentration: 60,
       ingredient: '덱시부프로펜',
       concentrationLabel: '12mg/mL',
+      doseUnit: 'ml',
+      mgPerMl: 12,
       age: '어린이',
       doseGuide: '체중 기준 5~7mg/kg',
       intervalGuide: '4~6시간 간격',
@@ -140,6 +161,8 @@ export const PRODUCTS: Record<MedicineType, Product[]> = {
       concentration: 60,
       ingredient: '덱시부프로펜',
       concentrationLabel: '12mg/mL',
+      doseUnit: 'ml',
+      mgPerMl: 12,
       age: '어린이',
       doseGuide: '체중 기준 5~7mg/kg',
       intervalGuide: '4~6시간 간격',
@@ -147,6 +170,64 @@ export const PRODUCTS: Record<MedicineType, Product[]> = {
       imageSrc: '/products/anypen-syrup.png',
     },
   ],
+}
+
+
+export const MEDICINE_DOSE_RANGES: Record<MedicineType, [number, number]> = {
+  acetaminophen: [10, 15],
+  ibuprofen: [5, 10],
+  dexibuprofen: [5, 7],
+}
+
+export type DosageCalculation = {
+  minMg: number
+  maxMg: number
+} & (
+  | { doseUnit: 'ml'; minMl: number; maxMl: number }
+  | { doseUnit: 'packet'; minPackets: number; maxPackets: number }
+)
+
+export function calcDosage(weight: number, medicine: MedicineType, product: Product): DosageCalculation {
+  const range = MEDICINE_DOSE_RANGES[medicine]
+  const minMg = weight * range[0]
+  const maxMg = weight * range[1]
+
+  if (product.doseUnit === 'ml') {
+    return {
+      doseUnit: 'ml',
+      minMg,
+      maxMg,
+      minMl: minMg / product.mgPerMl,
+      maxMl: maxMg / product.mgPerMl,
+    }
+  }
+
+  return {
+    doseUnit: 'packet',
+    minMg,
+    maxMg,
+    minPackets: minMg / product.mgPerPacket,
+    maxPackets: maxMg / product.mgPerPacket,
+  }
+}
+
+export function getDoseUnitLabel(doseUnit: Product['doseUnit']) {
+  return doseUnit === 'ml' ? 'ml' : '포'
+}
+
+export function getDoseUnitLabelForConcentration(concentration: string) {
+  return concentration.includes('포') ? '포' : 'ml'
+}
+
+export function getDosageDisplayRange(dosage: DosageCalculation) {
+  return dosage.doseUnit === 'ml'
+    ? { min: dosage.minMl, max: dosage.maxMl, unitLabel: getDoseUnitLabel(dosage.doseUnit) }
+    : { min: dosage.minPackets, max: dosage.maxPackets, unitLabel: getDoseUnitLabel(dosage.doseUnit) }
+}
+
+export function getDosageDisplayAmount(dosage: DosageCalculation) {
+  const range = getDosageDisplayRange(dosage)
+  return (range.min + range.max) / 2
 }
 
 export const MEDICINE_NAMES: Record<MedicineType, string> = {
