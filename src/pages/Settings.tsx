@@ -31,34 +31,7 @@ import { useAppContext } from '@/contexts/AppContext'
 import type { Child } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
 import { cn } from '@/lib/utils'
-
-const STORAGE_PREFS_KEY = 'smartdose_prefs_v1'
-
-interface Prefs {
-  defaultMedicine: 'acetaminophen' | 'ibuprofen'
-  defaultConcentration: string
-}
-
-function loadPrefs(): Prefs {
-  try {
-    const raw = localStorage.getItem(STORAGE_PREFS_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {
-    // ignore
-  }
-  return {
-    defaultMedicine: 'acetaminophen',
-    defaultConcentration: '100mg/5ml',
-  }
-}
-
-function savePrefs(prefs: Prefs) {
-  try {
-    localStorage.setItem(STORAGE_PREFS_KEY, JSON.stringify(prefs))
-  } catch {
-    // ignore
-  }
-}
+import { loadPrefs, savePrefs, type Prefs } from '@/lib/preferences'
 
 function getAgeText(birthDate: string): string {
   const birth = new Date(birthDate)

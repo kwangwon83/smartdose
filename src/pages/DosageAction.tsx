@@ -24,9 +24,9 @@ import Layout from '@/components/Layout'
 import BottomSheet from '@/components/BottomSheet'
 import { useAppContext } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
+import { getProductIndexForPreference, loadPrefs, type MedicineType } from '@/lib/preferences'
 
 // ─── Types ───
-type MedicineType = 'acetaminophen' | 'ibuprofen'
 
 interface PendingDosage {
   medicine: MedicineType
@@ -384,10 +384,12 @@ export default function DosageAction() {
 
   // Derive dosage data
   const pending = useMemo(() => getPendingDosage(), [])
-  const medicine: MedicineType = pending?.medicine ?? 'acetaminophen'
-  const productIndex = pending?.productIndex ?? 0
+  const prefs = useMemo(() => loadPrefs(), [])
+  const medicine: MedicineType = pending?.medicine ?? prefs.defaultMedicine
+  const productIndex =
+    pending?.productIndex ?? getProductIndexForPreference(PRODUCTS[medicine], prefs.defaultConcentration)
   const weight = currentChild?.weight ?? pending?.weight ?? 15
-  const product = PRODUCTS[medicine][productIndex] ?? PRODUCTS.acetaminophen[0]
+  const product = PRODUCTS[medicine][productIndex] ?? PRODUCTS[medicine][0]
 
   // Persist current dosage to localStorage so refresh keeps it
   useEffect(() => {
