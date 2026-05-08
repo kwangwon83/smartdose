@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router'
-import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, X, Loader2 } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { ChevronLeft, Loader2 } from 'lucide-react'
 import Layout from '@/components/Layout'
 import { useAppContext } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
+import { buildOAuthStartUrl, getOAuthErrorMessage, type OAuthProvider } from '@/lib/oauth'
 
-type Provider = 'kakao' | 'naver' | 'google'
+type Provider = OAuthProvider
 
 const PROVIDER_CONFIG: Record<
   Provider,
@@ -45,32 +46,12 @@ const PROVIDER_CONFIG: Record<
   },
 }
 
-function generateMockProfile(provider: Provider) {
-  const names: Record<Provider, string> = {
-    kakao: '김스마트',
-    naver: '박도즈',
-    google: 'Smart Parent',
-  }
-  const emails: Record<Provider, string> = {
-    kakao: 'smart@kakao.com',
-    naver: 'smart@naver.com',
-    google: 'smart.parent@gmail.com',
-  }
-  return {
-    provider,
-    name: names[provider],
-    email: emails[provider],
-  }
-}
-
 export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { isLoggedIn, login } = useAppContext()
+  const { isLoggedIn } = useAppContext()
 
   const [loadingProvider, setLoadingProvider] = useState<Provider | null>(null)
-  const [showMockModal, setShowMockModal] = useState(false)
-  const [mockProvider, setMockProvider] = useState<Provider | null>(null)
 
   // Redirect if already logged in
   useEffect(() => {
@@ -79,24 +60,16 @@ export default function Login() {
     }
   }, [isLoggedIn, navigate])
 
-  const startMockLogin = (provider: Provider) => {
-    setMockProvider(provider)
-    setShowMockModal(true)
-    setLoadingProvider(provider)
+  const startOAuthLogin = (provider: Provider) => {
+    const from = (location.state as { from?: string } | null)?.from
 
-    setTimeout(() => {
-      const profile = generateMockProfile(provider)
-      login(profile)
-      setShowMockModal(false)
+    try {
+      setLoadingProvider(provider)
+      window.location.assign(buildOAuthStartUrl(provider, from || '/settings'))
+    } catch (error) {
       setLoadingProvider(null)
-      showToast('로그인되었습니다', 'success')
-
-      // Navigate back to previous page or settings
-      const from = (location.state as { from?: string })?.from
-      setTimeout(() => {
-        navigate(from || '/settings', { replace: true })
-      }, 1000)
-    }, 1500)
+      showToast(getOAuthErrorMessage(error), 'error')
+    }
   }
 
   const handleGuest = () => {
@@ -195,7 +168,7 @@ export default function Login() {
                   ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
                   delay: 0.4 + i * 0.1,
                 }}
-                onClick={() => startMockLogin(provider)}
+                onClick={() => startOAuthLogin(provider)}
                 disabled={isDisabled}
                 className="w-full h-[52px] rounded-xl flex items-center justify-center gap-3 text-base font-semibold active:scale-[0.97] transition-transform relative overflow-hidden"
                 style={{
@@ -266,58 +239,6 @@ export default function Login() {
         </motion.div>
       </div>
 
-      {/* ─── Mock OAuth Modal ─── */}
-      <AnimatePresence>
-        {showMockModal && mockProvider && (
-          <motion.div
-            className="fixed inset-0 z-[100] flex items-center justify-center px-6"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <div
-              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-              onClick={() => {
-                setShowMockModal(false)
-                setLoadingProvider(null)
-              }}
-            />
-            <motion.div
-              className="relative bg-white rounded-[20px] p-8 w-full max-w-[300px] shadow-modal flex flex-col items-center gap-4"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{
-                duration: 0.25,
-                ease: [0.34, 1.56, 0.64, 1] as [number, number, number, number],
-              }}
-            >
-              <button
-                onClick={() => {
-                  setShowMockModal(false)
-                  setLoadingProvider(null)
-                }}
-                className="absolute top-3 right-3 p-1 rounded-full hover:bg-gray-100"
-              >
-                <X className="w-4 h-4 text-smart-text-muted" />
-              </button>
-              <img
-                src={PROVIDER_CONFIG[mockProvider].icon}
-                alt=""
-                className="w-10 h-10"
-              />
-              <h3 className="text-base font-semibold text-smart-text">
-                {PROVIDER_CONFIG[mockProvider].name} 로그인
-              </h3>
-              <Loader2 className="w-8 h-8 text-smart-primary animate-spin" />
-              <p className="text-sm text-smart-text-secondary">
-                로그인 처리 중입니다...
-              </p>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </Layout>
   )
 }
