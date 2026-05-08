@@ -6,6 +6,7 @@ export interface Child {
   birthDate: string
   weight: number
   avatar: string
+  gender?: 'male' | 'female'
 }
 
 export interface DosageRecord {

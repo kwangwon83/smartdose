@@ -326,6 +326,7 @@ export default function DosageAction() {
   const productIndex = pending?.productIndex ?? dosageLib.getProductIndexForPreference(medicine, prefs.defaultConcentration)
   const weight = currentChild?.weight ?? pending?.weight ?? 15
   const product = dosageLib.PRODUCTS[medicine][productIndex] ?? dosageLib.PRODUCTS.acetaminophen[0]
+  const theme = dosageLib.MEDICINE_THEMES[medicine]
 
   // Persist current dosage to localStorage so refresh keeps it
   useEffect(() => {
@@ -548,7 +549,8 @@ export default function DosageAction() {
       <div className="px-5 py-4 flex flex-col gap-6 pb-8">
         {/* ─── Dosage Info Card ─── */}
         <motion.div
-          className="bg-white rounded-[20px] shadow-card p-6"
+          className="rounded-[20px] shadow-card p-6 border"
+          style={{ background: theme.gradient, borderColor: theme.border }}
           initial={{ translateY: 20, opacity: 0 }}
           animate={{ translateY: 0, opacity: 1 }}
           transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] as [number, number, number, number], delay: 0.1 }}
@@ -579,12 +581,13 @@ export default function DosageAction() {
               <span className="text-base font-medium text-smart-text">{weight}kg</span>
             </motion.div>
             <motion.div className="flex items-center gap-3" variants={cardItemVariants}>
-              <Pill className="w-4 h-4 text-smart-text-muted shrink-0" />
+              <Pill className="w-4 h-4 shrink-0" style={{ color: theme.color }} />
               <span className="text-base font-medium text-smart-text">{dosageLib.MEDICINE_NAMES[medicine]}</span>
             </motion.div>
             <motion.div className="flex items-center gap-3" variants={cardItemVariants}>
-              <Droplets className="w-4 h-4 text-smart-primary shrink-0" />
-              <span className="text-base font-semibold text-smart-primary">
+              <Droplets className="w-4 h-4 shrink-0" style={{ color: theme.color }} />
+              <span className="text-base font-semibold"
+                style={{ color: theme.color }}>
                 {doseAmount}{doseUnitLabel} ({doseMg}mg)
               </span>
             </motion.div>

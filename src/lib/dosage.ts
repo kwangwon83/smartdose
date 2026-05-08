@@ -230,6 +230,34 @@ export function getDosageDisplayAmount(dosage: DosageCalculation) {
   return (range.min + range.max) / 2
 }
 
+
+export const MEDICINE_THEMES: Record<MedicineType, { label: string; color: string; bg: string; border: string; gradient: string; chipBg: string }> = {
+  acetaminophen: {
+    label: 'ACET',
+    color: '#0F766E',
+    bg: '#CCFBF1',
+    border: '#99F6E4',
+    gradient: 'linear-gradient(135deg, #F0FDFA 0%, #CCFBF1 100%)',
+    chipBg: '#99F6E4',
+  },
+  ibuprofen: {
+    label: 'IBU',
+    color: '#C2410C',
+    bg: '#FFEDD5',
+    border: '#FED7AA',
+    gradient: 'linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%)',
+    chipBg: '#FED7AA',
+  },
+  dexibuprofen: {
+    label: 'DEX',
+    color: '#7C3AED',
+    bg: '#EDE9FE',
+    border: '#DDD6FE',
+    gradient: 'linear-gradient(135deg, #F5F3FF 0%, #EDE9FE 100%)',
+    chipBg: '#DDD6FE',
+  },
+}
+
 export const MEDICINE_NAMES: Record<MedicineType, string> = {
   acetaminophen: '아세트아미노펜',
   ibuprofen: '이부프로펜',

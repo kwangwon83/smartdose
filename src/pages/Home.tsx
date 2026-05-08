@@ -14,33 +14,53 @@ import {
   FlaskConical,
 } from 'lucide-react'
 import Layout from '@/components/Layout'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { useAppContext } from '@/contexts/AppContext'
+import type { Child } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
 import * as dosageLib from '@/lib/dosage'
+import { getDefaultChildAvatar, isDefaultChildAvatar, readImageFileAsDataUrl, type ChildGender } from '@/lib/children'
+import { cn } from '@/lib/utils'
 
 
-const MEDICINE_INFO: Record<dosageLib.MedicineType, { name: string; range: [number, number]; maxDoses: number; interval: string; desc: string }> = {
+const MEDICINE_INFO: Record<dosageLib.MedicineType, { name: string; maxDoses: number; interval: string; desc: string }> = {
   acetaminophen: {
     name: '아세트아미노펜',
-    range: [10, 15],
     maxDoses: 4,
     interval: '4시간',
     desc: '해열·진통 / 4시간 간격',
   },
   ibuprofen: {
     name: '이부프로펜',
-    range: [5, 10],
     maxDoses: 4,
     interval: '6~8시간',
     desc: '해열·소염·진통 / 6~8시간 간격',
   },
   dexibuprofen: {
     name: '덱시부프로펜',
-    range: [5, 7],
     maxDoses: 4,
     interval: '4~6시간',
     desc: '해열·소염·진통 / 4~6시간 간격',
   },
+}
+
+
+interface ChildFormData {
+  name: string
+  birthDate: string
+  weight: string
+  gender: ChildGender
+  avatar: string
+}
+
+const emptyChildForm: ChildFormData = {
+  name: '',
+  birthDate: '',
+  weight: '15',
+  gender: 'male',
+  avatar: getDefaultChildAvatar('male'),
 }
 
 // ─── Helpers ───
@@ -108,6 +128,9 @@ export default function Home() {
   const [productIndex, setProductIndex] = useState(0)
   const [accordionOpen, setAccordionOpen] = useState<string | null>(null)
   const [childSelectorOpen, setChildSelectorOpen] = useState(false)
+  const [childModalOpen, setChildModalOpen] = useState(false)
+  const [childForm, setChildForm] = useState<ChildFormData>(emptyChildForm)
+  const [childFormErrors, setChildFormErrors] = useState<Partial<Record<keyof ChildFormData, string>>>({})
 
   const holdTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -194,33 +217,65 @@ export default function Home() {
     if (child) setWeight(child.weight)
   }
 
-  const onAddChild = () => {
-    const name = window.prompt('아이 이름을 입력해주세요')
-    if (!name) return
-    const weightStr = window.prompt('몸무게(kg)를 입력해주세요', '15')
-    const w = Number(weightStr)
-    if (!weightStr || isNaN(w) || w < 3 || w > 60) {
-      showToast('올바른 몸무게를 입력해주세요', 'error')
+  const onAddChild = useCallback(() => {
+    setChildForm({ ...emptyChildForm, weight: String(weight) })
+    setChildFormErrors({})
+    setChildSelectorOpen(false)
+    setChildModalOpen(true)
+  }, [weight])
+
+  const handleChildGenderChange = useCallback((gender: ChildGender) => {
+    setChildForm((prev) => ({
+      ...prev,
+      gender,
+      avatar: isDefaultChildAvatar(prev.avatar) ? getDefaultChildAvatar(gender) : prev.avatar,
+    }))
+  }, [])
+
+  const handleChildPhotoChange = useCallback(async (file: File | undefined) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      showToast('이미지 파일을 선택해주세요', 'error')
       return
     }
-    const newChild = {
+    const avatar = await readImageFileAsDataUrl(file)
+    setChildForm((prev) => ({ ...prev, avatar }))
+  }, [])
+
+  const saveChildFromModal = useCallback(() => {
+    const errors: Partial<Record<keyof ChildFormData, string>> = {}
+    const name = childForm.name.trim()
+    const childWeight = Number.parseFloat(childForm.weight)
+    if (!name || name.length > 20) errors.name = '이름은 1~20자로 입력해주세요'
+    if (!childForm.birthDate) errors.birthDate = '생일을 선택해주세요'
+    if (Number.isNaN(childWeight) || childWeight < 3 || childWeight > 60) {
+      errors.weight = '몸무게는 3~60kg 사이로 입력해주세요'
+    }
+    setChildFormErrors(errors)
+    if (Object.keys(errors).length > 0) return
+
+    const newChild: Child = {
       id: generateId(),
       name,
-      birthDate: '',
-      weight: w,
-      avatar: children.length % 2 === 0 ? '/child-avatar-1.svg' : '/child-avatar-2.svg',
+      birthDate: childForm.birthDate,
+      weight: formatNumber(childWeight),
+      avatar: childForm.avatar,
+      gender: childForm.gender,
     }
     addChild(newChild)
     setCurrentChild(newChild)
-    setWeight(w)
-    setChildSelectorOpen(false)
-  }
+    setWeight(newChild.weight)
+    setChildModalOpen(false)
+    showToast(`${newChild.name} 정보가 추가되었어요`, 'success')
+  }, [addChild, childForm, setCurrentChild])
 
   const info = MEDICINE_INFO[medicine]
+  const theme = dosageLib.MEDICINE_THEMES[medicine]
   const maxMg = medicine === 'acetaminophen' ? 500 : 400
   const showAdultWarning = weight >= 40
 
   return (
+    <>
     <Layout>
       {/* ─── Hero ─── */}
       <motion.section
@@ -368,11 +423,12 @@ export default function Home() {
                 <button
                   key={m}
                   onClick={() => handleSelectMedicine(m)}
-                  className={`flex-1 h-12 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors active:scale-[0.97] ${
-                    active
-                      ? 'bg-smart-primary text-white'
-                      : 'bg-white text-smart-text-secondary border border-smart-border'
-                  }`}
+                  className="flex-1 h-12 flex items-center justify-center gap-2 rounded-xl border text-sm font-semibold transition-colors active:scale-[0.97]"
+                  style={{
+                    background: active ? dosageLib.MEDICINE_THEMES[m].gradient : '#FFFFFF',
+                    borderColor: active ? dosageLib.MEDICINE_THEMES[m].border : '#E2E8F0',
+                    color: active ? dosageLib.MEDICINE_THEMES[m].color : '#64748B',
+                  }}
                 >
                   <Pill className="w-4 h-4" />
                   {MEDICINE_INFO[m].name}
@@ -388,12 +444,14 @@ export default function Home() {
           initial={{ translateY: 30, opacity: 0 }}
           animate={{ translateY: 0, opacity: 1 }}
           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number], delay: 0.4 }}
-          className="bg-white rounded-[20px] shadow-card p-6"
+          className="rounded-[20px] shadow-card p-6 border"
+          style={{ background: theme.gradient, borderColor: theme.border }}
         >
           {/* Card header */}
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-9 h-9 rounded-full bg-smart-primary/10 flex items-center justify-center">
-              <Pill className="w-5 h-5 text-smart-primary" />
+            <div className="w-9 h-9 rounded-full flex items-center justify-center"
+              style={{ background: theme.bg }}>
+              <Pill className="w-5 h-5" style={{ color: theme.color }} />
             </div>
             <h3 className="text-lg font-semibold text-smart-text">{info.name}</h3>
           </div>
@@ -410,7 +468,8 @@ export default function Home() {
                   transition={{ duration: 0.3, ease: [0.34, 1.56, 0.64, 1] as [number, number, number, number] }}
                   className="flex items-baseline justify-center gap-1"
                 >
-                  <span className="text-[3rem] font-bold text-smart-primary leading-tight">
+                  <span className="text-[3rem] font-bold leading-tight"
+                    style={{ color: theme.color }}>
                     {formatNumber(dosageRange.min)} ~ {formatNumber(dosageRange.max)}
                   </span>
                   <span className="text-base text-smart-text-secondary font-medium">{dosageRange.unitLabel}</span>
@@ -448,11 +507,12 @@ export default function Home() {
                     <button
                       key={concentrationLabel}
                       onClick={() => handleSelectConcentration(concentrationLabel)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                        active
-                          ? 'bg-smart-primary text-white'
-                          : 'bg-smart-primary/5 text-smart-text-secondary border border-smart-border'
-                      }`}
+                      className="rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+                      style={{
+                        background: active ? theme.bg : '#FFFFFF',
+                        borderColor: active ? theme.border : '#E2E8F0',
+                        color: active ? theme.color : '#64748B',
+                      }}
                     >
                       {concentrationLabel}
                     </button>
@@ -654,8 +714,11 @@ export default function Home() {
                   className="bg-white rounded-xl shadow-card p-4 flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-smart-primary/10 flex items-center justify-center">
-                      <Pill className="w-4 h-4 text-smart-primary" />
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center"
+                      style={{ background: dosageLib.MEDICINE_THEMES[record.medicine].bg }}
+                    >
+                      <Pill className="w-4 h-4" style={{ color: dosageLib.MEDICINE_THEMES[record.medicine].color }} />
                     </div>
                     <div>
                       <p className="text-sm font-medium text-smart-text">
@@ -672,7 +735,11 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-smart-primary">{record.amountMl}{dosageLib.getDoseUnitLabelForConcentration(record.concentration)}</p>
+                    <p className="text-sm font-semibold"
+                      style={{ color: dosageLib.MEDICINE_THEMES[record.medicine].color }}
+                    >
+                      {record.amountMl}{dosageLib.getDoseUnitLabelForConcentration(record.concentration)}
+                    </p>
                     <p className="text-xs text-smart-text-muted">{record.amountMg}mg</p>
                   </div>
                 </div>
@@ -682,5 +749,99 @@ export default function Home() {
         )}
       </div>
     </Layout>
+
+    <Dialog open={childModalOpen} onOpenChange={setChildModalOpen}>
+      <DialogContent className="max-w-[360px] rounded-[24px] p-0 overflow-hidden gap-0">
+        <div className="p-6">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-lg font-semibold text-center">아이 등록하기</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center gap-3 mb-5">
+            <img
+              src={childForm.avatar}
+              alt="아이 사진 미리보기"
+              className="w-20 h-20 rounded-full object-cover bg-[#F8FAFC] border border-smart-border"
+            />
+            <label className="h-9 px-4 rounded-full border border-smart-border bg-white text-sm font-semibold text-smart-text-secondary flex items-center justify-center active:scale-[0.98] transition-transform cursor-pointer">
+              사진 선택
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(e) => void handleChildPhotoChange(e.target.files?.[0])}
+              />
+            </label>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-smart-text mb-1.5 block">이름</label>
+              <Input
+                value={childForm.name}
+                onChange={(e) => setChildForm((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="아이 이름"
+                className={cn('h-12 rounded-xl border-smart-border', childFormErrors.name && 'border-smart-danger')}
+              />
+              {childFormErrors.name && <p className="mt-1 text-xs text-smart-danger">{childFormErrors.name}</p>}
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-smart-text mb-1.5 block">몸무게 (kg)</label>
+              <Input
+                type="number"
+                step="0.1"
+                min="3"
+                max="60"
+                value={childForm.weight}
+                onChange={(e) => setChildForm((prev) => ({ ...prev, weight: e.target.value }))}
+                placeholder="15.0"
+                className={cn('h-12 rounded-xl border-smart-border', childFormErrors.weight && 'border-smart-danger')}
+              />
+              {childFormErrors.weight && <p className="mt-1 text-xs text-smart-danger">{childFormErrors.weight}</p>}
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-smart-text mb-1.5 block">생일</label>
+              <Input
+                type="date"
+                value={childForm.birthDate}
+                onChange={(e) => setChildForm((prev) => ({ ...prev, birthDate: e.target.value }))}
+                className={cn('h-12 rounded-xl border-smart-border', childFormErrors.birthDate && 'border-smart-danger')}
+              />
+              {childFormErrors.birthDate && <p className="mt-1 text-xs text-smart-danger">{childFormErrors.birthDate}</p>}
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-smart-text mb-1.5 block">성별</label>
+              <div className="flex gap-2">
+                {(['male', 'female'] as ChildGender[]).map((gender) => (
+                  <button
+                    key={gender}
+                    onClick={() => handleChildGenderChange(gender)}
+                    className={cn(
+                      'flex-1 h-12 rounded-xl border font-medium text-sm transition-all',
+                      childForm.gender === gender
+                        ? 'border-smart-primary bg-[rgba(20,184,166,0.08)] text-smart-primary'
+                        : 'border-smart-border text-smart-text-secondary',
+                    )}
+                  >
+                    {gender === 'male' ? '남아' : '여아'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <Button
+            onClick={saveChildFromModal}
+            className="mt-6 w-full h-12 rounded-xl bg-smart-primary hover:bg-smart-primary-dark text-white font-semibold"
+          >
+            저장
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
