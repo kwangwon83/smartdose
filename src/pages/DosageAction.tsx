@@ -24,45 +24,19 @@ import Layout from '@/components/Layout'
 import BottomSheet from '@/components/BottomSheet'
 import { useAppContext } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
-import { buildShareText, executeShareTarget, type ShareTarget, type ShareResult } from '@/lib/share'
-
-// ─── Types ───
-
-interface PendingDosageDraft {
-  medicine: MedicineType
-  productIndex: number
-  weight: number
-}
-
-interface DoseAlarmData {
-  time: string
-  childName: string
-  medicine: MedicineType
-  enabled: boolean
-}
+import {
+  MEDICINE_INTERVAL_HOURS,
+  MEDICINE_NAMES,
+  PRODUCTS,
+  getPendingDosage,
+  getProductIndexForPreference,
+  loadDosagePrefs,
+  savePendingDosageDraft,
+  type DoseAlarmData,
+  type MedicineType,
+} from '@/lib/dosage'
 
 // ─── Constants ───
-const MEDICINE_NAMES: Record<MedicineType, string> = {
-  acetaminophen: '아세트아미노펜',
-  ibuprofen: '이부프로펜',
-}
-
-const MEDICINE_INTERVAL_HOURS: Record<MedicineType, number> = {
-  acetaminophen: 4,
-  ibuprofen: 6,
-}
-
-const PRODUCTS: Record<MedicineType, { name: string; concentration: number }[]> = {
-  acetaminophen: [
-    { name: '타세놀 시럽', concentration: 100 },
-    { name: '페디아 시럽', concentration: 120 },
-    { name: '타이레놀 시럽', concentration: 160 },
-  ],
-  ibuprofen: [
-    { name: '브루펜 시럽', concentration: 100 },
-    { name: '아이프로엔 시럽', concentration: 100 },
-  ],
-}
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
 const MINUTES = [0, 10, 20, 30, 40, 50]

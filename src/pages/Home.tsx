@@ -16,32 +16,8 @@ import {
 import Layout from '@/components/Layout'
 import { useAppContext } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
-import { getProductIndexForPreference, loadPrefs, type MedicineType } from '@/lib/preferences'
+import { PRODUCTS, savePendingDosageDraft, type MedicineType } from '@/lib/dosage'
 
-// ─── Types ───
-
-interface Product {
-  name: string
-  concentration: number // mg per 5ml
-}
-
-interface PendingDosageDraft {
-  medicine: MedicineType
-  productIndex: number
-  weight: number
-}
-
-const PRODUCTS: Record<MedicineType, Product[]> = {
-  acetaminophen: [
-    { name: '타세놀 시럽', concentration: 100 },
-    { name: '페디아 시럽', concentration: 120 },
-    { name: '타이레놀 시럽', concentration: 160 },
-  ],
-  ibuprofen: [
-    { name: '브루펜 시럽', concentration: 100 },
-    { name: '아이프로엔 시럽', concentration: 100 },
-  ],
-}
 
 const MEDICINE_INFO: Record<MedicineType, { name: string; range: [number, number]; maxDoses: number; interval: string; desc: string }> = {
   acetaminophen: {
