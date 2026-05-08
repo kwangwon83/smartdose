@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
@@ -43,7 +43,37 @@ const MINUTES = [0, 10, 20, 30, 40, 50]
 
 const ALARM_KEY = 'smartdose_alarm_v1'
 const MANUAL_TIME_KEY = 'smartdose_manual_time_v1'
+const SETTINGS_PREFS_KEY = 'smartdose_prefs_v1'
+
+interface DosagePrefs {
+  defaultMedicine: MedicineType
+  defaultConcentration: string
+}
+
 // ─── Helpers ───
+
+function loadPrefs(): DosagePrefs {
+  try {
+    const raw = localStorage.getItem(SETTINGS_PREFS_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<DosagePrefs>
+      const defaultMedicine = parsed.defaultMedicine === 'ibuprofen' ? 'ibuprofen' : 'acetaminophen'
+      return {
+        defaultMedicine,
+        defaultConcentration: parsed.defaultConcentration || PRODUCTS[defaultMedicine][0].concentration + 'mg/5ml',
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return { defaultMedicine: 'acetaminophen', defaultConcentration: '100mg/5ml' }
+}
+
+function getProductIndexForPreference(medicine: MedicineType, concentration: string): number {
+  const concentrationValue = Number.parseInt(concentration, 10)
+  const index = PRODUCTS[medicine].findIndex((product) => product.concentration === concentrationValue)
+  return index >= 0 ? index : 0
+}
 
 function formatNumber(n: number, digits = 1) {
   return Number(n.toFixed(digits))
@@ -77,7 +107,7 @@ function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
-function getAlarm(): DoseAlarmData | null {
+function getPendingDosage(): PendingDosageDraft | null {
   try {
     const raw = localStorage.getItem(ALARM_KEY)
     if (raw) return JSON.parse(raw)
@@ -87,9 +117,25 @@ function getAlarm(): DoseAlarmData | null {
   return null
 }
 
-function scheduleDoseNotification(alarm: DoseAlarmData) {
+function savePendingDosageDraft(dosage: PendingDosageDraft) {
+  try {
+    localStorage.setItem(PENDING_KEY, JSON.stringify(dosage))
+  } catch {
+    // ignore
+  }
+}
+
+function getAlarm(): DoseAlarmData | null {
   try {
     localStorage.setItem(ALARM_KEY, JSON.stringify(alarm))
+  } catch {
+    // ignore
+  }
+}
+
+function scheduleDoseNotification(alarm: DoseAlarmData) {
+  try {
+    localStorage.removeItem(ALARM_KEY)
   } catch {
     // ignore
   }
@@ -135,21 +181,6 @@ function saveManualTime(time: string | null) {
   }
 }
 
-function buildShareText(
-  childName: string,
-  time: string,
-  medicine: string,
-  doseMl: number,
-  doseMg: number,
-  nextDoseTime: string
-) {
-  return `[투약 기록]
-아이: ${childName}
-시간: ${time}
-약품: ${medicine}
-용량: ${doseMl}ml (${doseMg}mg)
-다음 투약 가능: ${nextDoseTime}`
-}
 
 // ─── Sub-components ───
 
@@ -329,6 +360,7 @@ function TimeWheelPicker({
 
 export default function DosageAction() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { currentChild, addDosageRecord, setAlarmEnabled, setNextDoseTime } = useAppContext()
 
   const [note, setNote] = useState('')
@@ -336,7 +368,7 @@ export default function DosageAction() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [shareSheetOpen, setShareSheetOpen] = useState(false)
-  const [shareTarget, setShareTarget] = useState<'kakao' | 'sms' | 'share' | null>(null)
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
 
   // ─── 다음 투약 시간 관련 상태 ───
@@ -355,11 +387,11 @@ export default function DosageAction() {
 
   // Derive dosage data
   const pending = useMemo(() => getPendingDosage(), [])
-  const prefs = useMemo(() => loadDosagePrefs(), [])
+  const prefs = useMemo(() => loadPrefs(), [])
   const medicine: MedicineType = pending?.medicine ?? prefs.defaultMedicine
   const productIndex = pending?.productIndex ?? getProductIndexForPreference(medicine, prefs.defaultConcentration)
   const weight = currentChild?.weight ?? pending?.weight ?? 15
-  const product = PRODUCTS[medicine][productIndex] ?? PRODUCTS.acetaminophen[0]
+  const product = PRODUCTS[medicine][productIndex] ?? PRODUCTS[medicine][0]
 
   // Persist current dosage to localStorage so refresh keeps it
   useEffect(() => {
@@ -396,24 +428,48 @@ export default function DosageAction() {
   /** 알람 토글 - 현재 표시된 시간(수동/자동) 기준으로 설정 */
   const handleToggleAlarm = useCallback(
     async (enabled: boolean) => {
-      setAlarmOn(enabled)
       const targetDate = nextDoseDate
+      const alarm: DoseAlarmData = {
+        time: targetDate.toISOString(),
+        childName,
+        medicine,
+        enabled,
+      }
+
       if (enabled) {
-        if ('Notification' in window && 'requestPermission' in Notification) {
-          try {
-            const permission = await Notification.requestPermission()
-            if (permission === 'granted') {
-              showToast(`${formatTime(targetDate)}에 알람이 설정되었어요`, 'success')
-            } else if (permission === 'denied') {
+        if (!('Notification' in window) || !('requestPermission' in Notification)) {
+          showToast('이 브라우저는 알림을 지원하지 않아요', 'info')
+          return
+        }
+
+        try {
+          const permission =
+            Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission()
+
+          if (permission !== 'granted') {
+            setAlarmOn(false)
+            if (permission === 'denied') {
               showToast('알림 설정을 위해 브라우저 설정에서 권한을 허용해주세요', 'error')
             } else {
               showToast('알림 권한이 허용되지 않았어요. 수동으로 확인해주세요.', 'info')
             }
-          } catch {
-            showToast('알림 권한 요청에 실패했어요', 'error')
+            return
           }
-        } else {
-          showToast('이 브라우저는 알림을 지원하지 않아요', 'info')
+
+          const scheduled = await scheduleDoseNotification(alarm)
+          if (!scheduled) {
+            setAlarmOn(false)
+            showToast('이미 지난 시간이라 알람을 설정하지 못했어요', 'error')
+            return
+          }
+
+          setAlarmOn(true)
+          setAlarmEnabled(true)
+          setNextDoseTime(targetDate.toISOString())
+          showToast(`${formatTime(targetDate)}에 알람이 설정되었어요`, 'success')
+        } catch {
+          setAlarmOn(false)
+          showToast('알림 권한 요청에 실패했어요', 'error')
         }
         scheduleDoseNotification({
           time: targetDate.toISOString(),
@@ -460,40 +516,42 @@ export default function DosageAction() {
     }, 800)
   }, [currentChild, medicine, product, doseMl, doseMg, now, note, addDosageRecord, setNextDoseTime, nextDoseDate, navigate])
 
-  const openShare = useCallback((target: 'kakao' | 'sms' | 'share') => {
+  const openShare = useCallback((target: ShareTarget) => {
     setShareTarget(target)
     setShareSheetOpen(true)
   }, [])
 
-  const executeShare = useCallback(() => {
-    const text = buildShareText(childName, currentTimeStr, MEDICINE_NAMES[medicine], doseMl, doseMg, nextDoseTimeStr)
-    if (shareTarget === 'share') {
-      if (typeof navigator.share === 'function') {
-        navigator
-          .share({ title: '투약 기록', text })
-          .then(() => {
-            showToast('공유가 완료되었어요', 'success')
-          })
-          .catch(() => {
-            showToast('공유가 취소되었어요', 'info')
-          })
-      } else {
-        navigator.clipboard
-          ?.writeText(text)
-          .then(() => showToast('클립보드에 복사되었어요', 'success'))
-          .catch(() => showToast('공유할 수 없어요', 'error'))
-      }
-    } else if (shareTarget === 'sms') {
-      window.location.href = `sms:?body=${encodeURIComponent(text)}`
+  const handleShareResult = useCallback((result: ShareResult, target: ShareTarget) => {
+    if (result === 'shared') {
+      showToast('공유가 완료되었어요', 'success')
+    } else if (result === 'copied') {
+      showToast(
+        target === 'kakao'
+          ? '클립보드에 복사되었어요. 카카오톡에 붙여넣기 해주세요'
+          : '클립보드에 복사되었어요',
+        'success'
+      )
+    } else if (result === 'sms') {
       showToast('문자 앱을 열었어요', 'success')
-    } else if (shareTarget === 'kakao') {
-      navigator.clipboard
-        ?.writeText(text)
-        .then(() => showToast('클립보드에 복사되었어요. 카카오톡에 붙여넣기 해주세요', 'success'))
-        .catch(() => showToast('공유할 수 없어요. 앱이 설치되어 있는지 확인해주세요.', 'error'))
+    } else if (result === 'cancelled') {
+      showToast('공유가 취소되었어요', 'info')
+    } else {
+      showToast(
+        target === 'kakao'
+          ? '공유할 수 없어요. 앱이 설치되어 있는지 확인해주세요.'
+          : '공유할 수 없어요',
+        'error'
+      )
     }
+  }, [])
+
+  const executeShare = useCallback(async () => {
+    if (!shareTarget) return
+    const text = buildShareText(childName, currentTimeStr, MEDICINE_NAMES[medicine], doseMl, doseMg, nextDoseTimeStr)
+    const result = await executeShareTarget(shareTarget, text)
+    handleShareResult(result, shareTarget)
     setShareSheetOpen(false)
-  }, [childName, currentTimeStr, medicine, doseMl, doseMg, nextDoseTimeStr, shareTarget])
+  }, [childName, currentTimeStr, medicine, doseMl, doseMg, nextDoseTimeStr, shareTarget, handleShareResult])
 
   // ─── 시간 편집 핸들러 ───
 
@@ -524,9 +582,18 @@ export default function DosageAction() {
     setManualNextDoseDate(newDate)
     setIsManualEdit(true)
     saveManualTime(newDate.toISOString())
+    if (alarmOn && 'Notification' in window && Notification.permission === 'granted') {
+      void scheduleDoseNotification({
+        time: newDate.toISOString(),
+        childName,
+        medicine,
+        enabled: true,
+      })
+      setNextDoseTime(newDate.toISOString())
+    }
     setTimePickerOpen(false)
     showToast('다음 투약 시간이 수동 설정되었어요', 'success')
-  }, [pickerHour, pickerMinute])
+  }, [alarmOn, childName, medicine, pickerHour, pickerMinute, setNextDoseTime])
 
   /** 취소 버튼 → BottomSheet 닫기 */
   const handleCancelTimeEdit = useCallback(() => {
@@ -538,9 +605,18 @@ export default function DosageAction() {
     setManualNextDoseDate(null)
     setIsManualEdit(false)
     saveManualTime(null)
+    if (alarmOn && 'Notification' in window && Notification.permission === 'granted') {
+      void scheduleDoseNotification({
+        time: autoNextDoseDate.toISOString(),
+        childName,
+        medicine,
+        enabled: true,
+      })
+      setNextDoseTime(autoNextDoseDate.toISOString())
+    }
     setTimePickerOpen(false)
     showToast('자동 계산 시간으로 되돌렸어요', 'info')
-  }, [])
+  }, [alarmOn, autoNextDoseDate, childName, medicine, setNextDoseTime])
 
   // Animation helpers
   const cardItemVariants = {

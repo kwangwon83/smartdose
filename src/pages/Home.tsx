@@ -36,6 +36,8 @@ const MEDICINE_INFO: Record<MedicineType, { name: string; range: [number, number
   },
 }
 
+const PENDING_DOSAGE_KEY = 'smartdose_pending_dosage'
+
 // ─── Helpers ───
 function formatNumber(n: number, digits = 1) {
   return Number(n.toFixed(digits))
@@ -52,6 +54,14 @@ function calcDosage(weight: number, medicine: MedicineType, concentration: numbe
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function savePendingDosageDraft(draft: PendingDosageDraft) {
+  try {
+    localStorage.setItem(PENDING_DOSAGE_KEY, JSON.stringify(draft))
+  } catch {
+    // ignore
+  }
 }
 
 // ─── Components ───
@@ -105,9 +115,12 @@ export default function Home() {
   const navigate = useNavigate()
   const { currentChild, children, dosageRecords, setCurrentChild, addChild } = useAppContext()
 
+  const initialPrefs = useMemo(() => loadPrefs(), [])
   const [weight, setWeight] = useState(currentChild?.weight ?? 15)
-  const [medicine, setMedicine] = useState<MedicineType>('acetaminophen')
-  const [productIndex, setProductIndex] = useState(0)
+  const [medicine, setMedicine] = useState<MedicineType>(initialPrefs.defaultMedicine)
+  const [productIndex, setProductIndex] = useState(() =>
+    getProductIndexForPreference(PRODUCTS[initialPrefs.defaultMedicine], initialPrefs.defaultConcentration),
+  )
   const [accordionOpen, setAccordionOpen] = useState<string | null>(null)
   const [childSelectorOpen, setChildSelectorOpen] = useState(false)
 
@@ -142,6 +155,11 @@ export default function Home() {
       holdTimerRef.current = null
     }
   }, [])
+
+  const handleSelectMedicine = (nextMedicine: MedicineType) => {
+    setMedicine(nextMedicine)
+    setProductIndex(0)
+  }
 
   const handleRecordClick = () => {
     if (!isWeightValid) {
