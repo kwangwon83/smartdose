@@ -16,8 +16,32 @@ import {
 import Layout from '@/components/Layout'
 import { useAppContext } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
-import { PRODUCTS, savePendingDosageDraft, type MedicineType } from '@/lib/dosage'
+import { getProductIndexForPreference, loadPrefs, type MedicineType } from '@/lib/preferences'
 
+// ─── Types ───
+
+interface Product {
+  name: string
+  concentration: number // mg per 5ml
+}
+
+interface PendingDosageDraft {
+  medicine: MedicineType
+  productIndex: number
+  weight: number
+}
+
+const PRODUCTS: Record<MedicineType, Product[]> = {
+  acetaminophen: [
+    { name: '타세놀 시럽', concentration: 100 },
+    { name: '페디아 시럽', concentration: 120 },
+    { name: '타이레놀 시럽', concentration: 160 },
+  ],
+  ibuprofen: [
+    { name: '브루펜 시럽', concentration: 100 },
+    { name: '아이프로엔 시럽', concentration: 100 },
+  ],
+}
 
 const MEDICINE_INFO: Record<MedicineType, { name: string; range: [number, number]; maxDoses: number; interval: string; desc: string }> = {
   acetaminophen: {
@@ -36,6 +60,8 @@ const MEDICINE_INFO: Record<MedicineType, { name: string; range: [number, number
   },
 }
 
+const PENDING_DOSAGE_KEY = 'smartdose_pending_dosage'
+
 // ─── Helpers ───
 function formatNumber(n: number, digits = 1) {
   return Number(n.toFixed(digits))
@@ -52,6 +78,14 @@ function calcDosage(weight: number, medicine: MedicineType, concentration: numbe
 
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+function savePendingDosageDraft(draft: PendingDosageDraft) {
+  try {
+    localStorage.setItem(PENDING_DOSAGE_KEY, JSON.stringify(draft))
+  } catch {
+    // ignore
+  }
 }
 
 // ─── Components ───
@@ -105,9 +139,12 @@ export default function Home() {
   const navigate = useNavigate()
   const { currentChild, children, dosageRecords, setCurrentChild, addChild } = useAppContext()
 
+  const initialPrefs = useMemo(() => loadPrefs(), [])
   const [weight, setWeight] = useState(currentChild?.weight ?? 15)
-  const [medicine, setMedicine] = useState<MedicineType>('acetaminophen')
-  const [productIndex, setProductIndex] = useState(0)
+  const [medicine, setMedicine] = useState<MedicineType>(initialPrefs.defaultMedicine)
+  const [productIndex, setProductIndex] = useState(() =>
+    getProductIndexForPreference(PRODUCTS[initialPrefs.defaultMedicine], initialPrefs.defaultConcentration),
+  )
   const [accordionOpen, setAccordionOpen] = useState<string | null>(null)
   const [childSelectorOpen, setChildSelectorOpen] = useState(false)
 
@@ -142,6 +179,11 @@ export default function Home() {
       holdTimerRef.current = null
     }
   }, [])
+
+  const handleSelectMedicine = (nextMedicine: MedicineType) => {
+    setMedicine(nextMedicine)
+    setProductIndex(0)
+  }
 
   const handleRecordClick = () => {
     if (!isWeightValid) {
