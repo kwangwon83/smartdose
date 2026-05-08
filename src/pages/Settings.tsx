@@ -91,7 +91,7 @@ async function copySupportUrlToClipboard(url: string): Promise<boolean> {
 }
 
 interface Prefs {
-  defaultMedicine: 'acetaminophen' | 'ibuprofen'
+  defaultMedicine: 'acetaminophen' | 'ibuprofen' | 'dexibuprofen'
   defaultConcentration: string
 }
 
@@ -104,7 +104,7 @@ function loadPrefs(): Prefs {
   }
   return {
     defaultMedicine: 'acetaminophen',
-    defaultConcentration: '100mg/5ml',
+    defaultConcentration: '160mg/5ml',
   }
 }
 
@@ -194,14 +194,16 @@ const emptyForm: ChildFormData = {
   gender: 'male',
 }
 
-const medicineOptions: { value: 'acetaminophen' | 'ibuprofen'; label: string }[] = [
+const medicineOptions: { value: 'acetaminophen' | 'ibuprofen' | 'dexibuprofen'; label: string }[] = [
   { value: 'acetaminophen', label: '아세트아미노펜' },
   { value: 'ibuprofen', label: '이부프로펜' },
+  { value: 'dexibuprofen', label: '덱시부프로펜' },
 ]
 
 const concentrationOptions: Record<string, string[]> = {
-  acetaminophen: ['100mg/5ml', '120mg/5ml', '160mg/5ml'],
+  acetaminophen: ['160mg/5ml'],
   ibuprofen: ['100mg/5ml'],
+  dexibuprofen: ['60mg/5ml'],
 }
 
 function generateId(): string {
@@ -419,7 +421,7 @@ export default function Settings() {
     showToast('문의 폼으로 이동했어요.', 'success')
   }, [navigate, userProfile?.provider])
 
-  const handleSelectMedicine = useCallback((value: 'acetaminophen' | 'ibuprofen') => {
+  const handleSelectMedicine = useCallback((value: 'acetaminophen' | 'ibuprofen' | 'dexibuprofen') => {
     setPrefs((prev) => ({
       ...prev,
       defaultMedicine: value,

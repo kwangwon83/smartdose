@@ -31,7 +31,7 @@ import { ko } from 'date-fns/locale'
 
 // ─── Constants ───
 const MEDICINE_INFO: Record<
-  'acetaminophen' | 'ibuprofen',
+  'acetaminophen' | 'ibuprofen' | 'dexibuprofen',
   { name: string; color: string; bg: string; intervalHours: number }
 > = {
   acetaminophen: {
@@ -45,6 +45,12 @@ const MEDICINE_INFO: Record<
     color: '#F97316',
     bg: 'rgba(249,115,22,0.1)',
     intervalHours: 6,
+  },
+  dexibuprofen: {
+    name: '덱시부프로펜',
+    color: '#8B5CF6',
+    bg: 'rgba(139,92,246,0.1)',
+    intervalHours: 4,
   },
 }
 
@@ -479,7 +485,7 @@ export default function History() {
     setDetailRecord(updated)
     setTimePickerOpen(false)
     showToast('다음 투약 시간이 수정되었습니다', 'success')
-  }, [detailRecord, pickerHour, pickerMinute, updateDosageRecord])
+  }, [addDosageRecord, deleteDosageRecord, detailRecord, pickerHour, pickerMinute])
 
   const handleCancelTimeEdit = useCallback(() => {
     setTimePickerOpen(false)
@@ -502,10 +508,11 @@ export default function History() {
     setDetailRecord(updated)
     setTimePickerOpen(false)
     showToast('자동 계산 시간으로 되돌렸어요', 'info')
-  }, [detailRecord, updateDosageRecord])
+  }, [addDosageRecord, deleteDosageRecord, detailRecord])
 
 
-  const handleShareResult = useCallback((result: ShareResult, _target: ShareTarget) => {
+  const handleShareResult = useCallback((result: ShareResult, target: ShareTarget) => {
+    void target
     showToast(result.message, result.type)
   }, [])
 

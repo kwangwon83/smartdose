@@ -1,8 +1,15 @@
-export type MedicineType = 'acetaminophen' | 'ibuprofen'
+export type MedicineType = 'acetaminophen' | 'ibuprofen' | 'dexibuprofen'
 
 export interface Product {
   name: string
   concentration: number
+  ingredient: string
+  concentrationLabel: string
+  age: string
+  doseGuide: string
+  intervalGuide: string
+  dailyMaxGuide: string
+  imageSrc: string
 }
 
 export interface PendingDosageDraft {
@@ -25,24 +32,133 @@ export interface DosagePrefs {
 
 export const PRODUCTS: Record<MedicineType, Product[]> = {
   acetaminophen: [
-    { name: '타세놀 시럽', concentration: 100 },
-    { name: '페디아 시럽', concentration: 120 },
-    { name: '타이레놀 시럽', concentration: 160 },
+    {
+      name: '챔프시럽',
+      concentration: 160,
+      ingredient: '아세트아미노펜',
+      concentrationLabel: '32mg/mL',
+      age: '영유아 및 어린이',
+      doseGuide: '체중 기준 10~15mg/kg',
+      intervalGuide: '4시간 이상 간격',
+      dailyMaxGuide: '1일 최대 4회',
+      imageSrc: '/products/champ-syrup.png',
+    },
+    {
+      name: '콜대원키즈펜시럽',
+      concentration: 160,
+      ingredient: '아세트아미노펜',
+      concentrationLabel: '32mg/mL',
+      age: '영유아 및 어린이',
+      doseGuide: '체중 기준 10~15mg/kg',
+      intervalGuide: '4시간 이상 간격',
+      dailyMaxGuide: '1일 최대 4회',
+      imageSrc: '/products/coldaeone-kids-pen-syrup.png',
+    },
+    {
+      name: '어린이타이레놀현탁액',
+      concentration: 160,
+      ingredient: '아세트아미노펜',
+      concentrationLabel: '32mg/mL',
+      age: '영유아 및 어린이',
+      doseGuide: '체중 기준 10~15mg/kg',
+      intervalGuide: '4시간 이상 간격',
+      dailyMaxGuide: '1일 최대 4회',
+      imageSrc: '/products/children-tylenol-suspension.png',
+    },
+    {
+      name: '세토펜현탁액',
+      concentration: 160,
+      ingredient: '아세트아미노펜',
+      concentrationLabel: '32mg/mL',
+      age: '영유아 및 어린이',
+      doseGuide: '체중 기준 10~15mg/kg',
+      intervalGuide: '4시간 이상 간격',
+      dailyMaxGuide: '1일 최대 4회',
+      imageSrc: '/products/setopen-suspension.png',
+    },
+    {
+      name: '어린이 타이레놀산 160mg',
+      concentration: 160,
+      ingredient: '아세트아미노펜',
+      concentrationLabel: '160mg/포',
+      age: '어린이',
+      doseGuide: '체중 기준 10~15mg/kg',
+      intervalGuide: '4시간 이상 간격',
+      dailyMaxGuide: '1일 최대 4회',
+      imageSrc: '/products/children-tylenol-powder-160mg.png',
+    },
   ],
   ibuprofen: [
-    { name: '브루펜 시럽', concentration: 100 },
-    { name: '아이프로엔 시럽', concentration: 100 },
+    {
+      name: '어린이부루펜시럽',
+      concentration: 100,
+      ingredient: '이부프로펜',
+      concentrationLabel: '20mg/mL',
+      age: '어린이',
+      doseGuide: '체중 기준 5~10mg/kg',
+      intervalGuide: '6~8시간 간격',
+      dailyMaxGuide: '1일 최대 4회',
+      imageSrc: '/products/children-brufen-syrup.png',
+    },
+  ],
+  dexibuprofen: [
+    {
+      name: '맥시부펜시럽',
+      concentration: 60,
+      ingredient: '덱시부프로펜',
+      concentrationLabel: '12mg/mL',
+      age: '어린이',
+      doseGuide: '체중 기준 5~7mg/kg',
+      intervalGuide: '4~6시간 간격',
+      dailyMaxGuide: '1일 최대 4회',
+      imageSrc: '/products/maxibupen-syrup.png',
+    },
+    {
+      name: '이지엔6키즈시럽',
+      concentration: 60,
+      ingredient: '덱시부프로펜',
+      concentrationLabel: '12mg/mL',
+      age: '어린이',
+      doseGuide: '체중 기준 5~7mg/kg',
+      intervalGuide: '4~6시간 간격',
+      dailyMaxGuide: '1일 최대 4회',
+      imageSrc: '/products/easyen6-kids-syrup.png',
+    },
+    {
+      name: '보령펜시럽',
+      concentration: 60,
+      ingredient: '덱시부프로펜',
+      concentrationLabel: '12mg/mL',
+      age: '어린이',
+      doseGuide: '체중 기준 5~7mg/kg',
+      intervalGuide: '4~6시간 간격',
+      dailyMaxGuide: '1일 최대 4회',
+      imageSrc: '/products/boryung-pen-syrup.png',
+    },
+    {
+      name: '애니펜시럽',
+      concentration: 60,
+      ingredient: '덱시부프로펜',
+      concentrationLabel: '12mg/mL',
+      age: '어린이',
+      doseGuide: '체중 기준 5~7mg/kg',
+      intervalGuide: '4~6시간 간격',
+      dailyMaxGuide: '1일 최대 4회',
+      imageSrc: '/products/anypen-syrup.png',
+    },
   ],
 }
 
 export const MEDICINE_NAMES: Record<MedicineType, string> = {
   acetaminophen: '아세트아미노펜',
   ibuprofen: '이부프로펜',
+  dexibuprofen: '덱시부프로펜',
 }
 
 export const MEDICINE_INTERVAL_HOURS: Record<MedicineType, number> = {
   acetaminophen: 4,
   ibuprofen: 6,
+  dexibuprofen: 4,
 }
 
 export const PENDING_KEY = 'smartdose_pending_dosage'
@@ -71,7 +187,10 @@ export function loadDosagePrefs(): DosagePrefs {
     const raw = localStorage.getItem(SETTINGS_PREFS_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<DosagePrefs>
-      const defaultMedicine = parsed.defaultMedicine === 'ibuprofen' ? 'ibuprofen' : 'acetaminophen'
+      const defaultMedicine =
+        parsed.defaultMedicine === 'ibuprofen' || parsed.defaultMedicine === 'dexibuprofen'
+          ? parsed.defaultMedicine
+          : 'acetaminophen'
       return {
         defaultMedicine,
         defaultConcentration: parsed.defaultConcentration || `${PRODUCTS[defaultMedicine][0].concentration}mg/5ml`,
@@ -80,7 +199,7 @@ export function loadDosagePrefs(): DosagePrefs {
   } catch {
     // ignore
   }
-  return { defaultMedicine: 'acetaminophen', defaultConcentration: '100mg/5ml' }
+  return { defaultMedicine: 'acetaminophen', defaultConcentration: '160mg/5ml' }
 }
 
 export function getProductIndexForPreference(medicine: MedicineType, concentration: string): number {

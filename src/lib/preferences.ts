@@ -1,6 +1,6 @@
 export const STORAGE_PREFS_KEY = 'smartdose_prefs_v1'
 
-export type MedicineType = 'acetaminophen' | 'ibuprofen'
+export type MedicineType = 'acetaminophen' | 'ibuprofen' | 'dexibuprofen'
 
 export interface Prefs {
   defaultMedicine: MedicineType
@@ -9,7 +9,7 @@ export interface Prefs {
 
 export const DEFAULT_PREFS: Prefs = {
   defaultMedicine: 'acetaminophen',
-  defaultConcentration: '100mg/5ml',
+  defaultConcentration: '160mg/5ml',
 }
 
 export function loadPrefs(): Prefs {
@@ -18,7 +18,10 @@ export function loadPrefs(): Prefs {
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Prefs>
       return {
-        defaultMedicine: parsed.defaultMedicine === 'ibuprofen' ? 'ibuprofen' : DEFAULT_PREFS.defaultMedicine,
+        defaultMedicine:
+          parsed.defaultMedicine === 'ibuprofen' || parsed.defaultMedicine === 'dexibuprofen'
+            ? parsed.defaultMedicine
+            : DEFAULT_PREFS.defaultMedicine,
         defaultConcentration:
           typeof parsed.defaultConcentration === 'string'
             ? parsed.defaultConcentration
