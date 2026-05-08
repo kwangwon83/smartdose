@@ -48,15 +48,6 @@ function formatNumber(n: number, digits = 1) {
   return Number(n.toFixed(digits))
 }
 
-function calcDosage(weight: number, medicine: dosageLib.MedicineType, concentration: number) {
-  const info = MEDICINE_INFO[medicine]
-  const minMg = weight * info.range[0]
-  const maxMg = weight * info.range[1]
-  const minMl = (minMg / concentration) * 5
-  const maxMl = (maxMg / concentration) * 5
-  return { minMg, maxMg, minMl, maxMl }
-}
-
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
@@ -132,7 +123,8 @@ export default function Home() {
         .filter(({ product: p }) => p.concentrationLabel === product.concentrationLabel),
     [medicine, product.concentrationLabel]
   )
-  const dosage = useMemo(() => calcDosage(weight, medicine, product.concentration), [weight, medicine, product])
+  const dosage = useMemo(() => dosageLib.calcDosage(weight, medicine, product), [weight, medicine, product])
+  const dosageRange = useMemo(() => dosageLib.getDosageDisplayRange(dosage), [dosage])
 
   const isWeightValid = weight >= 3 && weight <= 60
 
@@ -419,9 +411,9 @@ export default function Home() {
                   className="flex items-baseline justify-center gap-1"
                 >
                   <span className="text-[3rem] font-bold text-smart-primary leading-tight">
-                    {formatNumber(dosage.minMl)} ~ {formatNumber(dosage.maxMl)}
+                    {formatNumber(dosageRange.min)} ~ {formatNumber(dosageRange.max)}
                   </span>
-                  <span className="text-base text-smart-text-secondary font-medium">ml</span>
+                  <span className="text-base text-smart-text-secondary font-medium">{dosageRange.unitLabel}</span>
                 </motion.div>
                 <p className="text-sm text-smart-text-muted mt-1">
                   ({Math.round(dosage.minMg)} ~ {Math.round(dosage.maxMg)}mg)
@@ -435,7 +427,7 @@ export default function Home() {
                 </p>
                 <p className="text-xs text-smart-text-muted flex items-center justify-center gap-1 mt-0.5">
                   <AlertCircle className="w-3 h-3" />
-                  제품에 따라 농도가 다를 수 있어요
+                  제품에 따라 농도와 포당 함량이 다를 수 있어요
                 </p>
               </div>
 
@@ -560,6 +552,7 @@ export default function Home() {
                         <div className="min-w-0 flex-1">
                           <p className="text-sm text-smart-text font-medium">{p.name}</p>
                           <p className="text-xs text-smart-text-muted">{p.ingredient} · {p.concentrationLabel}</p>
+                          <p className="text-xs text-smart-primary font-semibold mt-0.5">대상: {p.age}</p>
                           <p className="text-xs text-smart-text-muted mt-0.5">{p.doseGuide} · {p.intervalGuide}</p>
                         </div>
                         {productIndex === idx && (
@@ -679,7 +672,7 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-semibold text-smart-primary">{record.amountMl}ml</p>
+                    <p className="text-sm font-semibold text-smart-primary">{record.amountMl}{dosageLib.getDoseUnitLabelForConcentration(record.concentration)}</p>
                     <p className="text-xs text-smart-text-muted">{record.amountMg}mg</p>
                   </div>
                 </div>

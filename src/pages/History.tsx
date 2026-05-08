@@ -21,6 +21,7 @@ import BottomSheet from '@/components/BottomSheet'
 import { useAppContext, type DosageRecord } from '@/contexts/AppContext'
 import { showToast } from '@/components/Toast'
 import { buildShareText, executeShareTarget, type ShareTarget, type ShareResult } from '@/lib/share'
+import { getDoseUnitLabelForConcentration } from '@/lib/dosage'
 import {
   isToday,
   isYesterday,
@@ -327,7 +328,7 @@ function SwipeableRecordCard({
           </div>
           <p className="text-sm text-smart-text-secondary mt-0.5">
             <span className="text-base font-semibold text-smart-text">{record.amountMg}mg</span>
-            <span className="text-xs text-smart-text-muted"> ({record.amountMl}ml)</span>
+            <span className="text-xs text-smart-text-muted"> ({record.amountMl}{getDoseUnitLabelForConcentration(record.concentration)})</span>
           </p>
           {record.memo && (
             <p className="text-xs text-smart-text-muted mt-0.5 truncate">
@@ -532,6 +533,7 @@ export default function History() {
       }),
       MEDICINE_INFO[detailRecord.medicine].name,
       detailRecord.amountMl,
+      getDoseUnitLabelForConcentration(detailRecord.concentration),
       detailRecord.amountMg,
       getNextDoseTime(detailRecord)
     )
@@ -822,7 +824,7 @@ export default function History() {
                 <span className="text-sm text-smart-text-secondary">투약량</span>
                 <span className="text-sm font-medium text-smart-text">
                   <span className="text-base font-semibold">{detailRecord.amountMg}mg</span>
-                  <span className="text-xs text-smart-text-muted"> ({detailRecord.amountMl}ml)</span>
+                  <span className="text-xs text-smart-text-muted"> ({detailRecord.amountMl}{getDoseUnitLabelForConcentration(detailRecord.concentration)})</span>
                 </span>
               </div>
               <div className="flex items-center justify-between">
