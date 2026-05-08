@@ -357,6 +357,7 @@ export default function History() {
   const {
     children,
     dosageRecords,
+    addDosageRecord,
     deleteDosageRecord,
     updateDosageRecord,
   } = useAppContext()
@@ -504,28 +505,8 @@ export default function History() {
   }, [detailRecord, updateDosageRecord])
 
 
-  const handleShareResult = useCallback((result: ShareResult, target: ShareTarget) => {
-    if (result === 'shared') {
-      showToast('공유가 완료되었어요', 'success')
-    } else if (result === 'copied') {
-      showToast(
-        target === 'kakao'
-          ? '클립보드에 복사되었어요. 카카오톡에 붙여넣기 해주세요'
-          : '클립보드에 복사되었어요',
-        'success'
-      )
-    } else if (result === 'sms') {
-      showToast('문자 앱을 열었어요', 'success')
-    } else if (result === 'cancelled') {
-      showToast('공유가 취소되었어요', 'info')
-    } else {
-      showToast(
-        target === 'kakao'
-          ? '공유할 수 없어요. 앱이 설치되어 있는지 확인해주세요.'
-          : '공유할 수 없어요',
-        'error'
-      )
-    }
+  const handleShareResult = useCallback((result: ShareResult, _target: ShareTarget) => {
+    showToast(result.message, result.type)
   }, [])
 
   const executeDetailShare = useCallback(async (target: ShareTarget) => {
