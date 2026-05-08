@@ -135,7 +135,7 @@ function generateId() {
 
 function getPendingDosage(): PendingDosageDraft | null {
   try {
-    const raw = localStorage.getItem(PENDING_KEY)
+    const raw = localStorage.getItem(ALARM_KEY)
     if (raw) return JSON.parse(raw)
   } catch {
     // ignore
@@ -153,17 +153,15 @@ function savePendingDosageDraft(dosage: PendingDosageDraft) {
 
 function getAlarm(): DoseAlarmData | null {
   try {
-    const raw = localStorage.getItem(ALARM_KEY)
-    if (raw) return JSON.parse(raw)
+    localStorage.setItem(ALARM_KEY, JSON.stringify(alarm))
   } catch {
     // ignore
   }
-  return null
 }
 
 function scheduleDoseNotification(alarm: DoseAlarmData) {
   try {
-    localStorage.setItem(ALARM_KEY, JSON.stringify(alarm))
+    localStorage.removeItem(ALARM_KEY)
   } catch {
     // ignore
   }
